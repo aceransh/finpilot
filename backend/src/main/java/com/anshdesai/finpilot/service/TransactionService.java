@@ -37,6 +37,7 @@ public class TransactionService {
     public Transaction updateTransactionById(Long id, Transaction updated) {
         Transaction transaction = getTransactionById(id);
         transaction.setAmount(updated.getAmount());
+        transaction.setMerchant(updated.getMerchant());
         transaction.setCategory(updated.getCategory());
         transaction.setDate(updated.getDate());
         return transaction;
