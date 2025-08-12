@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import { getCategories, Category } from '../api/api';
+import { useEffect, useState } from 'react';
 import {
     Dialog,
     DialogTitle,
@@ -9,7 +10,7 @@ import {
     Grid,
     MenuItem,
 } from "@mui/material";
-import { Transaction } from "../api";
+import { Transaction } from "../api/api";
 
 interface Props {
     open: boolean;
@@ -18,27 +19,33 @@ interface Props {
     transaction?: Transaction | null;
 }
 
-const categories = [
-    "Food",
-    "Transportation",
-    "Shopping",
-    "Entertainment",
-    "Bills",
-    "Income",
-    "Other"
-];
-
 const emptyForm = {
     date: "",
     merchant: "",
     amount: "",
     category: "",
+    categoryId: "",
 };
 
 function TransactionForm({ open, onClose, onSubmit, transaction }: Props) {
     const [formData, setFormData] = useState(emptyForm);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [catOptions, setCatOptions] = useState<Category[]>([]);
+
+    useEffect(() => {
+        if (!open) return;
+        let alive = true;
+        (async () => {
+            try {
+                const cats = await getCategories();
+                if (alive) setCatOptions(cats);
+            } catch (e) {
+                console.error('Failed to load categories', e);
+            }
+        })();
+        return () => { alive = false; };
+    }, [open]);
 
     useEffect(() => {
         if (transaction) {
@@ -46,7 +53,9 @@ function TransactionForm({ open, onClose, onSubmit, transaction }: Props) {
                 date: transaction.date,
                 merchant: transaction.merchant,
                 amount: String(transaction.amount),
-                category: transaction.category,
+                category: transaction.category ?? "",
+                // transaction doesn't (yet) have categoryId in its TS type, so fall back to ""
+                categoryId: (transaction as any).categoryId ?? "",
             });
         } else {
             setFormData(emptyForm);
@@ -138,23 +147,37 @@ function TransactionForm({ open, onClose, onSubmit, transaction }: Props) {
                                 helperText="Use negative values for expenses, positive for income"
                             />
                         </Grid>
-
                         <Grid size={{ xs: 12 }}>
                             <TextField
-                                name="category"
+                                name="categoryId"
                                 label="Category"
                                 select
-                                value={formData.category}
-                                onChange={handleChange}
+                                value={formData.categoryId}
+                                onChange={(e) => {
+                                    const id = e.target.value;
+                                    const selected = catOptions.find(c => c.id === id);
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        categoryId: id,
+                                        category: selected ? selected.name : prev.category
+                                    }));
+                                }}
                                 fullWidth
                                 required
                                 disabled={submitting}
+                                helperText="Pick from your saved categories"
                             >
-                                {categories.map((cat) => (
-                                    <MenuItem key={cat} value={cat}>
-                                        {cat}
+                                {catOptions.length === 0 ? (
+                                    <MenuItem disabled value="">
+                                        {open ? 'Loading…' : 'No categories yet'}
                                     </MenuItem>
-                                ))}
+                                ) : (
+                                    catOptions.map((cat) => (
+                                        <MenuItem key={cat.id} value={cat.id}>
+                                            {cat.name}
+                                        </MenuItem>
+                                    ))
+                                )}
                             </TextField>
                         </Grid>
                     </Grid>
