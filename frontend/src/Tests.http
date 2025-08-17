@@ -1,0 +1,17 @@
+### List categories
+GET http://localhost:8080/api/v1/categories
+Accept: application/json
+
+### Create category
+POST http://localhost:8080/api/v1/categories
+Content-Type: application/json
+
+{
+  "name": "Food",
+  "type": "EXPENSE",
+  "color": "#FF0000"
+}
+
+### Delete category
+DELETE http://localhost:8080/api/v1/categories/3755cfde-ad6c-469c-9843-6fd4967ee6e1
+Accept: application/json
