@@ -1,5 +1,108 @@
-### GET request to example server
-GET https://examples.http-client.intellij.net/get
-    ?generated-in=IntelliJ IDEA
+### Base (edit if you changed ports)
+@host = http://localhost:8080
+@json = application/json
 
-###
+### 1) List categories as default user ("demo")
+GET {{host}}/api/v1/categories
+Accept: {{json}}
+
+### 2) List categories as "alice" (should be independent set)
+GET {{host}}/api/v1/categories
+Accept: {{json}}
+X-Demo-User: alice
+
+### 3) Create a category for alice
+POST {{host}}/api/v1/categories
+Accept: {{json}}
+Content-Type: {{json}}
+X-Demo-User: alice
+
+{
+  "name": "Alice Groceries",
+  "type": "EXPENSE",
+  "color": "#44AA55"
+}
+
+### 4) Verify alice sees her new category (demo should NOT)
+GET {{host}}/api/v1/categories
+Accept: {{json}}
+X-Demo-User: alice
+
+### 6) Create a transaction (demo) -> expect 201
+# pick a valid categoryId from GET /categories (demo user)
+@catId = 9d9a1c08-fab2-402a-bb84-2028b18d9c46
+
+POST {{host}}/api/v1/transactions?force=false
+Accept: {{json}}
+Content-Type: {{json}}
+
+{
+  "date": "2025-08-10",
+  "amount": -12.34,
+  "merchant": "Starbucks #123",
+  "category": "",
+  "categoryId": "{{catId}}"
+}
+
+### 7) Re-create the SAME transaction (demo) with force=false -> expect 409 DUPLICATE
+POST {{host}}/api/v1/transactions?force=false
+Accept: {{json}}
+Content-Type: {{json}}
+
+{
+  "date": "2025-08-10",
+  "amount": -12.34,
+  "merchant": "Starbucks #123",
+  "category": "",
+  "categoryId": "{{catId}}"
+}
+
+### 8) Now force it -> expect 201 (duplicate allowed)
+POST {{host}}/api/v1/transactions?force=true
+Accept: {{json}}
+Content-Type: {{json}}
+
+{
+  "date": "2025-08-10",
+  "amount": -12.34,
+  "merchant": "Starbucks #123",
+  "category": "",
+  "categoryId": "{{catId}}"
+}
+
+### 9) Search filters example (merchant contains "star", this month)
+GET {{host}}/api/v1/transactions?q=star&from=2025-08-01&to=2025-08-31&sort=date,desc&page=0&size=10
+Accept: {{json}}
+
+### 10) Update an existing tx WITHOUT force -> expect 409 if it becomes a dup
+# Replace {{txId}} with an id you saw in GET /transactions
+@txId = 23
+
+PUT {{host}}/api/v1/transactions/{{txId}}?force=false
+Accept: {{json}}
+Content-Type: {{json}}
+
+{
+  "date": "2025-08-10",
+  "amount": -12.34,
+  "merchant": "Starbucks #123",
+  "category": "",
+  "categoryId": "{{catId}}"
+}
+
+### 11) Force the same update -> expect 200
+PUT {{host}}/api/v1/transactions/{{txId}}?force=true
+Accept: {{json}}
+Content-Type: {{json}}
+
+{
+  "date": "2025-08-10",
+  "amount": -12.34,
+  "merchant": "Starbucks #123",
+  "category": "",
+  "categoryId": "{{catId}}"
+}
+
+### 12) Delete a tx (demo)
+DELETE {{host}}/api/v1/transactions/{{txId}}
+Accept: {{json}}

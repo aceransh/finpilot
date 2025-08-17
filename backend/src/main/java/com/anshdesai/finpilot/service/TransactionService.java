@@ -6,6 +6,7 @@ import com.anshdesai.finpilot.model.Transaction;
 import com.anshdesai.finpilot.api.TransactionMapper;
 import com.anshdesai.finpilot.repository.CategoryRepository;
 import com.anshdesai.finpilot.repository.TransactionRepository;
+import com.anshdesai.finpilot.security.CurrentUser;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -29,15 +30,17 @@ public class TransactionService {
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
     private final RuleEngineService ruleEngine;
+    private final CurrentUser currentUser;
 
-    public TransactionService(TransactionRepository transactionRepository, CategoryRepository categoryRepository, RuleEngineService ruleEngine) {
+    public TransactionService(TransactionRepository transactionRepository, CategoryRepository categoryRepository, RuleEngineService ruleEngine, CurrentUser currentUser) {
         this.transactionRepository = transactionRepository;
         this.categoryRepository = categoryRepository;
         this.ruleEngine = ruleEngine;
+        this.currentUser = currentUser;
     }
 
     public Transaction getTransactionById(Long id) {
-        return transactionRepository.findById(id)
+        return transactionRepository.findByIdAndUserId(id, currentUser.userId())
                 .orElseThrow(() ->
                         new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction not found")
                 );
@@ -55,11 +58,11 @@ public class TransactionService {
         // 2) Dedupe (still honors `force`)
         if (!force) {
             boolean dup = transactionRepository.existsDuplicate(
-                    req.getDate(), req.getAmount(), normMerchant   // <-- use trimmed merchant
+                    req.getDate(), req.getAmount(), normMerchant, currentUser.userId()   // <-- use trimmed merchant
             );
             if (dup) {
                 Optional<Transaction> existingOpt = transactionRepository.findFirstDuplicate(
-                        req.getDate(), req.getAmount(), normMerchant // <-- use trimmed merchant
+                        req.getDate(), req.getAmount(), normMerchant, currentUser.userId() // <-- use trimmed merchant
                 );
 
                 var pd = ProblemDetail.forStatus(HttpStatus.CONFLICT);
@@ -81,6 +84,7 @@ public class TransactionService {
 
         // 3) Build entity (save the normalized merchant)
         Transaction t = new Transaction(req.getDate(), req.getAmount(), normMerchant, req.getCategory());
+        t.setUserId(currentUser.userId());
 
         // 4) Manual category override via categoryId (unchanged)
         if (req.getCategoryId() != null) {
@@ -113,7 +117,7 @@ public class TransactionService {
     }
 
     public Transaction updateTransactionById(Long id, TransactionRequest req, boolean force) {
-        Transaction existing = transactionRepository.findById(id)
+        Transaction existing = transactionRepository.findByIdAndUserId(id, currentUser.userId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction not found"));
 
         // Build the “candidate” values from the request
@@ -122,17 +126,17 @@ public class TransactionService {
         String merchantRaw = req.getMerchant();
 
         // Normalize merchant for duplicate logic (same way you do it on create)
-        String merchantNorm = ruleEngine.normalize(merchantRaw); // or your local normalize(..)
+        String merchantNorm = RuleEngineService.normalize(merchantRaw);
 
         // Check duplicates EXCLUDING this row
         boolean dup = transactionRepository.existsDuplicateExcludingId(
-                id, date, amount, merchantNorm
+                id, date, amount, merchantNorm, currentUser.userId()
         );
 
         if (dup && !force) {
             // Find the conflicting one to include in the response
             Transaction conflict = transactionRepository.findFirstDuplicateExcludingId(
-                    id, date, amount, merchantNorm
+                    id, date, amount, merchantNorm, currentUser.userId()
             ).orElse(null);
 
             ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.CONFLICT);
@@ -154,7 +158,8 @@ public class TransactionService {
         // No duplicate (or forced) → apply updates
         existing.setDate(date);
         existing.setAmount(amount);
-        existing.setMerchant(merchantRaw);
+        existing.setMerchant(merchantNorm);
+        existing.setUserId(currentUser.userId());
 
         // category handling: mirror your create logic
         if (req.getCategoryId() != null) {
@@ -172,7 +177,9 @@ public class TransactionService {
     }
 
     public void deleteTransactionById(Long id) {
-        transactionRepository.deleteById(id);
+        Transaction existing = transactionRepository.findByIdAndUserId(id, currentUser.userId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction not found"));
+        transactionRepository.delete(existing);
     }
 
     public Page<Transaction> searchTransactions(
@@ -182,13 +189,12 @@ public class TransactionService {
             LocalDate endDate,
             Pageable pageable
     ) {
-        Specification<Transaction> spec = Specification.unrestricted();
+        Specification<Transaction> spec = (root, query, cb) ->
+                cb.equal(root.get("userId"), currentUser.userId());
 
         if (category != null && !category.isBlank()) {
-            spec = spec.and((root, query, cb) ->
-                    cb.equal(root.get("category"), category));
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("category"), category));
         }
-
         if (q != null && !q.isBlank()) {
             String like = "%" + q.toLowerCase() + "%";
             spec = spec.and((root, query, cb) ->
@@ -197,15 +203,11 @@ public class TransactionService {
                             cb.like(cb.lower(root.get("category")), like)
                     ));
         }
-
         if (startDate != null) {
-            spec = spec.and((root, query, cb) ->
-                    cb.greaterThanOrEqualTo(root.get("date"), startDate));
+            spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("date"), startDate));
         }
-
         if (endDate != null) {
-            spec = spec.and((root, query, cb) ->
-                    cb.lessThanOrEqualTo(root.get("date"), endDate));
+            spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("date"), endDate));
         }
 
         return transactionRepository.findAll(spec, pageable);

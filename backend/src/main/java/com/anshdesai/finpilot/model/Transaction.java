@@ -27,6 +27,9 @@ public class Transaction {
     @Column(name = "category_locked", nullable = false)
     private boolean categoryLocked = false;
 
+    @Column(name = "user_id", nullable = false, length = 128)
+    private String userId;
+
     public Transaction() {}
 
     public Transaction(LocalDate date, BigDecimal amount, String merchant, String category) {
@@ -57,4 +60,7 @@ public class Transaction {
 
     public boolean isCategoryLocked() { return categoryLocked; }
     public void setCategoryLocked(boolean categoryLocked) { this.categoryLocked = categoryLocked; }
+
+    public String getUserId() { return userId; }
+    public void setUserId(String userId) { this.userId = userId; }
 }
