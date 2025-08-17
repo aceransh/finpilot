@@ -2,6 +2,7 @@ package com.anshdesai.finpilot.service;
 
 import com.anshdesai.finpilot.model.Category;
 import com.anshdesai.finpilot.model.Rule;
+import com.anshdesai.finpilot.model.Transaction;
 import com.anshdesai.finpilot.repository.RuleRepository;
 import org.springframework.stereotype.Service;
 
@@ -51,5 +52,21 @@ public class RuleEngineService {
                     .find();
             default -> false;
         };
+    }
+
+    public void applyCategoryIfUnlocked(Transaction t) {
+        if (t == null) return;
+        // Do nothing if user (or a previous rule) has locked it
+        if (t.isCategoryLocked()) return;
+
+        // Normalize the merchant the same way you do elsewhere
+        String merchantNorm = normalize(t.getMerchant());
+
+        // Try to find a matching category via rules; if found, set and lock
+        this.apply(merchantNorm).ifPresent(cat -> {
+            t.setCategoryRef(cat);
+            t.setCategory(cat.getName());   // keep legacy text in sync
+            t.setCategoryLocked(true);      // lock because a rule made the decision
+        });
     }
 }

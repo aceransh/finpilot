@@ -3,6 +3,7 @@ package com.anshdesai.finpilot.service;
 import com.anshdesai.finpilot.api.TransactionRequest;
 import com.anshdesai.finpilot.model.Category;
 import com.anshdesai.finpilot.model.Transaction;
+import com.anshdesai.finpilot.api.TransactionMapper;
 import com.anshdesai.finpilot.repository.CategoryRepository;
 import com.anshdesai.finpilot.repository.TransactionRepository;
 import jakarta.transaction.Transactional;
@@ -10,15 +11,17 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.stereotype.Service;
+import org.springframework.web.ErrorResponseException;
 import org.springframework.web.server.ResponseStatusException;
-import com.anshdesai.finpilot.service.RuleEngineService;
 
 import java.time.LocalDate;
-import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.Objects;
+import java.util.LinkedHashMap;
+import java.math.BigDecimal;
 
 @Service
 @Transactional
@@ -41,23 +44,64 @@ public class TransactionService {
     }
 
     public Transaction createTransaction(TransactionRequest req) {
-        Transaction t = new Transaction(req.getDate(), req.getAmount(), req.getMerchant(), req.getCategory());
+        return createTransaction(req, false);                 // <-- default path: do NOT force, will 409 on dupes
+    }
 
-        // 1) Explicit categoryId from client → set + lock
+    public Transaction createTransaction(TransactionRequest req, boolean force) {
+        // 1) Normalize merchant once (handles trailing spaces & weird whitespace)
+        final String rawMerchant = req.getMerchant();
+        final String normMerchant = rawMerchant == null ? "" : rawMerchant.trim();
+
+        // 2) Dedupe (still honors `force`)
+        if (!force) {
+            boolean dup = transactionRepository.existsDuplicate(
+                    req.getDate(), req.getAmount(), normMerchant   // <-- use trimmed merchant
+            );
+            if (dup) {
+                Optional<Transaction> existingOpt = transactionRepository.findFirstDuplicate(
+                        req.getDate(), req.getAmount(), normMerchant // <-- use trimmed merchant
+                );
+
+                var pd = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+                pd.setTitle("Duplicate transaction");
+                pd.setDetail("A matching transaction already exists.");
+                pd.setProperty("code", "DUPLICATE");
+                existingOpt.ifPresent(existing ->
+                        pd.setProperty("existing", TransactionMapper.toResponse(existing))
+                );
+                pd.setProperty("candidate", Map.of(
+                        "date", req.getDate(),
+                        "amount", req.getAmount(),
+                        "merchant", normMerchant                     // <-- normalized in the echo
+                ));
+
+                throw new ErrorResponseException(HttpStatus.CONFLICT, pd, null);
+            }
+        }
+
+        // 3) Build entity (save the normalized merchant)
+        Transaction t = new Transaction(req.getDate(), req.getAmount(), normMerchant, req.getCategory());
+
+        // 4) Manual category override via categoryId (unchanged)
         if (req.getCategoryId() != null) {
-            Category cat = categoryRepository.findById(req.getCategoryId())
+            UUID id = req.getCategoryId();
+            Category cat = categoryRepository.findById(id)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Category not found"));
             t.setCategoryRef(cat);
             t.setCategoryLocked(true);
+            t.setCategory(cat.getName()); // mirror FK into legacy text for now
         } else {
-            // 2) No explicit category → try rules
-            ruleEngine.apply(req.getMerchant()).ifPresent(cat -> {
-                t.setCategoryRef(cat);
-                t.setCategoryLocked(true); // recommended: lock after auto-assign
-            });
-            // If no match, leave categoryRef null and unlocked=false or true? Your call.
-            if (t.getCategoryRef() == null) {
-                t.setCategoryLocked(false);
+            // 5) Try rules SAFELY (no 500s if a rule is bad). Use normalized merchant.
+            t.setCategoryLocked(false);
+            try {
+                ruleEngine.apply(normMerchant).ifPresent(cat -> {
+                    t.setCategoryRef(cat);
+                    t.setCategory(cat.getName());  // mirror FK into legacy text
+                    t.setCategoryLocked(true);     // lock because a rule decided it
+                });
+            } catch (RuntimeException e) {
+                // Log & proceed without rules (prevents ALL-CAPS or bad regex from crashing)
+                System.err.println("Rules engine error: " + e.getMessage());
             }
         }
 
@@ -65,33 +109,64 @@ public class TransactionService {
     }
 
     public Transaction updateTransactionById(Long id, TransactionRequest req) {
+        return updateTransactionById(id, req, false);
+    }
+
+    public Transaction updateTransactionById(Long id, TransactionRequest req, boolean force) {
         Transaction existing = transactionRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction not found"));
 
-        boolean merchantChanged = (req.getMerchant() != null)
-                && !req.getMerchant().equals(existing.getMerchant());
+        // Build the “candidate” values from the request
+        LocalDate date = req.getDate();
+        BigDecimal amount = req.getAmount();
+        String merchantRaw = req.getMerchant();
 
-        // Basic field updates
-        existing.setDate(req.getDate());
-        existing.setAmount(req.getAmount());
-        existing.setMerchant(req.getMerchant());
-        existing.setCategory(req.getCategory()); // legacy text stays for now
+        // Normalize merchant for duplicate logic (same way you do it on create)
+        String merchantNorm = ruleEngine.normalize(merchantRaw); // or your local normalize(..)
 
+        // Check duplicates EXCLUDING this row
+        boolean dup = transactionRepository.existsDuplicateExcludingId(
+                id, date, amount, merchantNorm
+        );
+
+        if (dup && !force) {
+            // Find the conflicting one to include in the response
+            Transaction conflict = transactionRepository.findFirstDuplicateExcludingId(
+                    id, date, amount, merchantNorm
+            ).orElse(null);
+
+            ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+            pd.setTitle("Duplicate transaction");
+            pd.setDetail("Editing would create a duplicate.");
+            pd.setProperty("code", "DUPLICATE");
+            if (conflict != null) {
+                pd.setProperty("existing", TransactionMapper.toResponse(conflict));
+            }
+            Map<String,Object> candidate = new LinkedHashMap<>();
+            candidate.put("merchant", merchantRaw);
+            candidate.put("date", date);
+            candidate.put("amount", amount);
+            pd.setProperty("candidate", candidate);
+
+            throw new ErrorResponseException(HttpStatus.CONFLICT, pd, null);
+        }
+
+        // No duplicate (or forced) → apply updates
+        existing.setDate(date);
+        existing.setAmount(amount);
+        existing.setMerchant(merchantRaw);
+
+        // category handling: mirror your create logic
         if (req.getCategoryId() != null) {
-            // explicit override → set + lock
-            Category cat = categoryRepository.findById(req.getCategoryId())
+            UUID catId = req.getCategoryId();
+            Category cat = categoryRepository.findById(catId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Category not found"));
             existing.setCategoryRef(cat);
             existing.setCategoryLocked(true);
-        } else if (merchantChanged) {
-            // merchant changed and no explicit category sent → re-run rules (unless you want to keep locked)
-            existing.setCategoryLocked(false); // allow re-categorization
-            ruleEngine.apply(req.getMerchant()).ifPresent(cat -> {
-                existing.setCategoryRef(cat);
-                existing.setCategoryLocked(true);
-            });
+        } else {
+            // If user didn’t lock, optionally (re)run rules if you want:
+            ruleEngine.applyCategoryIfUnlocked(existing);
         }
-        // else: no explicit category, merchant not changed → keep current locked state as-is
 
         return transactionRepository.save(existing);
     }

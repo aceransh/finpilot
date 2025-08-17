@@ -1,4 +1,5 @@
-import { getCategories, Category } from '../api/api';
+import axios from 'axios';
+import {getCategories, Category, createTransactionForce, updateTransaction} from '../api/api';
 import { useEffect, useState } from 'react';
 import {
     Dialog,
@@ -9,6 +10,7 @@ import {
     Button,
     Grid,
     MenuItem,
+    Alert,
 } from "@mui/material";
 import { Transaction } from "../api/api";
 
@@ -32,6 +34,23 @@ function TransactionForm({ open, onClose, onSubmit, transaction }: Props) {
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [catOptions, setCatOptions] = useState<Category[]>([]);
+
+    const [dupInfo, setDupInfo] = useState<null | {
+        existing?: {
+            id: number;
+            date: string;
+            amount: number;
+            merchant: string;
+            category?: string;
+            categoryName?: string;
+        };
+        candidate?: {
+            date?: string;
+            amount?: number;
+            merchant?: string;
+        };
+        detail?: string;
+    }>(null);
 
     useEffect(() => {
         if (!open) return;
@@ -64,7 +83,8 @@ function TransactionForm({ open, onClose, onSubmit, transaction }: Props) {
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
-        setFormData((prev) => ({ ...prev, [name]: value }));
+        setDupInfo(null);                 // <-- clear any prior 409 panel
+        setFormData(prev => ({ ...prev, [name]: value }));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -84,11 +104,95 @@ function TransactionForm({ open, onClose, onSubmit, transaction }: Props) {
 
         try {
             setSubmitting(true);
-            await onSubmit({ ...formData, amount: parsedAmount });
-            // success → close & reset
+            setDupInfo(null); // clear previous duplicate panel
+
+            // build a normalized payload
+            const payload: Omit<Transaction, "id"> = {
+                date: formData.date,
+                amount: parsedAmount,
+                merchant: formData.merchant.trim(),        // <-- trim!
+                category: formData.category,
+                // only include categoryId if it's a non-empty string
+                ...(formData.categoryId ? { categoryId: formData.categoryId } : {}),
+            } as any; // 'as any' here keeps TS happy since Transaction doesn't yet include categoryId in its type
+
+            await onSubmit(payload);
+            onClose();
+        } catch (err: unknown) {
+            if (axios.isAxiosError(err)) {
+                if (err.response?.status === 409) {
+                    const data = err.response.data as any;
+                    setDupInfo({
+                        existing: data.existing,
+                        candidate: data.candidate,
+                        detail: data.detail || "Duplicate transaction",
+                    });
+                    setError(null);
+                    return;
+                }
+                setError(err.response?.data?.message || "Failed to submit. Please try again.");
+            } else {
+                setError("Failed to submit. Please try again.");
+            }
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleForceAdd = async () => {
+        setError(null);
+
+        // basic validation again (same as submit)
+        if (!formData.date || !formData.merchant) {
+            setError("Date and merchant are required.");
+            return;
+        }
+        const parsedAmount = parseFloat(formData.amount);
+        if (Number.isNaN(parsedAmount)) {
+            setError("Amount must be a number.");
+            return;
+        }
+
+        try {
+            setSubmitting(true);
+            // Build the payload exactly like normal submit
+            const payload = {
+                date: formData.date,
+                amount: parsedAmount,
+                merchant: formData.merchant.trim(),
+                category: formData.category,
+                ...(formData.categoryId ? { categoryId: formData.categoryId } : {}) // <-- key change
+            };
+
+            // Force-create directly (temporary: next micro-step will plumb this via parent)
+            await createTransactionForce(payload);
+
+            // Close the dialog; parent refresh wiring comes next
             onClose();
         } catch (err) {
-            setError("Failed to submit. Please try again.");
+            setError("Failed to add anyway. Please try again.");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleForceSave = async () => {
+        if (!transaction) return; // only valid in edit mode
+        try {
+            setSubmitting(true);
+            // Reuse current form state but send force=true
+            await updateTransaction(transaction.id, {
+                date: formData.date,
+                amount: Number(formData.amount),
+                merchant: formData.merchant,
+                category: formData.category,
+                categoryId: formData.categoryId || undefined,
+            }, { force: true });
+
+            setDupInfo(null);
+            onClose(); // close dialog; parent will refresh the list in its onClose/onSubmit flow
+        } catch (e) {
+            setError("Failed to save anyway. Please try again.");
         } finally {
             setSubmitting(false);
         }
@@ -100,11 +204,69 @@ function TransactionForm({ open, onClose, onSubmit, transaction }: Props) {
                 <DialogTitle>{transaction ? "Edit Transaction" : "Add Transaction"}</DialogTitle>
                 <DialogContent>
 
-                    {error && (
-                        <div style={{ marginBottom: 8, color: '#d32f2f' }}>
-                            {error}
+                    {dupInfo && (
+                        <div style={{
+                            marginBottom: 12,
+                            padding: 12,
+                            borderRadius: 8,
+                            border: '1px solid rgba(0,0,0,0.12)',
+                            background: 'rgba(255, 243, 224, 0.6)' // subtle warning tone
+                        }}>
+                            <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                                {dupInfo.detail || "Duplicate transaction"}
+                            </div>
+                            {dupInfo.existing && (
+                                <div style={{ marginBottom: 6 }}>
+                                    <div style={{ fontSize: 12, opacity: 0.75 }}>Existing:</div>
+                                    <div>
+                                        #{dupInfo.existing.id} — {dupInfo.existing.merchant} · {dupInfo.existing.date} · ${dupInfo.existing.amount.toFixed(2)}{dupInfo.existing.categoryName ? ` · ${dupInfo.existing.categoryName}` : ""}
+                                    </div>
+                                </div>
+                            )}
+                            {dupInfo.candidate && (
+                                <div>
+                                    <div style={{ fontSize: 12, opacity: 0.75 }}>Your new one:</div>
+                                    <div>
+                                        {dupInfo.candidate.merchant} · {dupInfo.candidate.date} · ${Number(dupInfo.candidate.amount).toFixed(2)}
+                                    </div>
+                                </div>
+                            )}
+                            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                                {transaction ? (
+                                    <Button
+                                        variant="contained"
+                                        size="small"
+                                        onClick={handleForceSave}
+                                        disabled={submitting}
+                                    >
+                                        Save anyway
+                                    </Button>
+                                ) : (
+                                    <Button
+                                        variant="contained"
+                                        size="small"
+                                        onClick={handleForceAdd}
+                                        disabled={submitting}
+                                    >
+                                        Add anyway
+                                    </Button>
+                                )}
+                                <Button
+                                    size="small"
+                                    onClick={() => setDupInfo(null)}
+                                    disabled={submitting}
+                                >
+                                    Cancel
+                                </Button>
+                            </div>
+                            {error && (
+                                <Alert severity="error" sx={{ mb: 2 }}>
+                                    {error}
+                                </Alert>
+                            )}
                         </div>
                     )}
+
 
                     <Grid container spacing={2} sx={{ mt: 1 }}>
                         <Grid size={{ xs: 12 }}>

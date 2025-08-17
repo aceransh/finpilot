@@ -12,14 +12,15 @@ public final class TransactionMapper {
     public static TransactionResponse toResponse(Transaction t) {
         Category c = t.getCategoryRef();
         String categoryId   = (c != null) ? c.getId().toString() : null;
-        String categoryName = (c != null) ? c.getName() : t.getCategory(); // fallback to legacy string
+        String categoryName = (c != null) ? c.getName() : t.getCategory();
+        String legacy       = (c != null) ? c.getName() : t.getCategory(); // <-- fill legacy in response
 
         return new TransactionResponse(
                 t.getId(),
                 t.getDate(),
                 t.getAmount(),
                 t.getMerchant(),
-                t.getCategory(),   // keep legacy field as-is for now
+                legacy,           // <-- use legacy filled from FK if present
                 categoryId,
                 categoryName,
                 t.isCategoryLocked()

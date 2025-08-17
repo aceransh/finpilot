@@ -1,43 +1,45 @@
 import axios from 'axios';
 
+/* ----------------------------- HTTP client ----------------------------- */
+export const client = axios.create({ baseURL: '/api/v1' });
+
+/* ------------------------------ Shared types --------------------------- */
 export interface Page<T> {
     content: T[];
     totalPages: number;
     totalElements: number;
-    size: number;   // page size
-    number: number; // current page index (0-based)
+    size: number;
+    number: number; // 0-based page index
 }
 
+/* ============================== Transactions =========================== */
 export interface Transaction {
     id: number;
-    date: string;
+    date: string;          // YYYY-MM-DD
     amount: number;
     merchant: string;
-    category: string;
-    categoryId?: string;        // <-- add
-    categoryLocked?: boolean;   // <-- add if you return it
-    categoryName?: string;      // <-- if you return it separate from `category`
+    category: string;      // legacy label kept for now
+    categoryId?: string;   // FK to categories
+    categoryLocked?: boolean;
+    categoryName?: string; // resolved name from FK
 }
 
-const client = axios.create({ baseURL: '/api/v1' });
-
-// ---- Query types ----
 export type SortDir = 'asc' | 'desc';
 
 export interface TxQuery {
-    page?: number;          // default 0
-    size?: number;          // default 10
-    sort?: string;          // e.g. "date,desc" or "amount,asc"
-    q?: string;             // search text
+    page?: number;
+    size?: number;
+    sort?: string;   // e.g. "date,desc"
+    q?: string;
     category?: string;
-    from?: string;          // "YYYY-MM-DD"
-    to?: string;            // "YYYY-MM-DD"
+    from?: string;   // YYYY-MM-DD
+    to?: string;     // YYYY-MM-DD
 }
 
-// ---- API calls ----
+export type TxUpsert = Omit<Transaction, 'id' | 'categoryName' | 'categoryLocked'>;
+
 export const getTransactions = async (params: TxQuery = {}) => {
     const { page = 0, size = 10, sort = 'date,desc', q, category, from, to } = params;
-
     const p: Record<string, unknown> = { page, size, sort };
     if (q) p.q = q;
     if (category) p.category = category;
@@ -48,15 +50,25 @@ export const getTransactions = async (params: TxQuery = {}) => {
     return data;
 };
 
-export type TxUpsert = Omit<Transaction, 'id' | 'categoryName' | 'categoryLocked'>;
-
 export const createTransaction = async (tx: TxUpsert) => {
     const { data } = await client.post<Transaction>('/transactions', tx);
     return data;
 };
 
-export const updateTransaction = async (id: number, tx: TxUpsert) => {
-    const { data } = await client.put<Transaction>(`/transactions/${id}`, tx);
+export const createTransactionForce = async (tx: TxUpsert) => {
+    const { data } = await client.post<Transaction>('/transactions', tx, {
+        params: { force: true },
+    });
+    return data;
+};
+
+export const updateTransaction = async (
+    id: number,
+    tx: TxUpsert,
+    opts?: { force?: boolean }
+) => {
+    const params = opts?.force ? { force: true } : undefined;
+    const { data } = await client.put<Transaction>(`/transactions/${id}`, tx, { params });
     return data;
 };
 
@@ -64,11 +76,12 @@ export const deleteTransaction = async (id: number) => {
     await client.delete(`/transactions/${id}`);
 };
 
+/* ================================ Categories =========================== */
 export interface Category {
     id: string;
     name: string;
     type: 'EXPENSE' | 'INCOME';
-    color?: string | null; // allow nulls from DB
+    color?: string | null;
 }
 
 export interface CategoryRequest {
@@ -87,15 +100,24 @@ export const createCategory = async (body: CategoryRequest) => {
     return data;
 };
 
-// ---- Rules types ----
+export const updateCategory = async (id: string, body: CategoryRequest) => {
+    const { data } = await client.put<Category>(`/categories/${id}`, body);
+    return data;
+};
+
+export const deleteCategory = async (id: string) => {
+    await client.delete(`/categories/${id}`);
+};
+
+/* ================================= Rules =============================== */
 export type MatchType = 'CONTAINS' | 'REGEX';
 
 export interface Rule {
     id: string;
     pattern: string;
     matchType: MatchType;
-    categoryId: string;      // FK
-    categoryName: string;    // convenience from backend
+    categoryId: string;
+    categoryName: string;
     priority: number;
     enabled: boolean;
 }
@@ -108,7 +130,6 @@ export interface RuleRequest {
     enabled?: boolean;
 }
 
-// ---- Rules API ----
 export const getRules = async () => {
     const { data } = await client.get<Rule[]>('/rules');
     return data;
@@ -129,9 +150,11 @@ export const deleteRule = async (id: string) => {
 };
 
 export const testRule = async (merchant: string) => {
-    const { data } = await client.post<{ matched: boolean; ruleId?: string; categoryId?: string; categoryName?: string }>(
-        '/rules/test',
-        { merchant }
-    );
+    const { data } = await client.post<{
+        matched: boolean;
+        ruleId?: string;
+        categoryId?: string;
+        categoryName?: string;
+    }>('/rules/test', { merchant });
     return data;
 };

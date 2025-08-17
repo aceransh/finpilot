@@ -51,13 +51,21 @@ public class TransactionController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public TransactionResponse createTransaction(@Valid @RequestBody TransactionRequest tx) {
-        return TransactionMapper.toResponse(transactionService.createTransaction(tx));
+    public TransactionResponse createTransaction(
+            @Valid @RequestBody TransactionRequest tx,
+            @RequestParam(name = "force", defaultValue = "false") boolean force
+    ) {
+        return TransactionMapper.toResponse(transactionService.createTransaction(tx, force));
     }
 
     @PutMapping("/{id}")
-    public TransactionResponse updateTransaction(@PathVariable Long id, @Valid @RequestBody TransactionRequest tx) {
-        return TransactionMapper.toResponse(transactionService.updateTransactionById(id, tx));
+    public TransactionResponse update(
+            @PathVariable Long id,
+            @Valid @RequestBody TransactionRequest req,
+            @RequestParam(name = "force", defaultValue = "false") boolean force
+    ) {
+        Transaction updated = transactionService.updateTransactionById(id, req, force);
+        return TransactionMapper.toResponse(updated);
     }
 
     @DeleteMapping("/{id}")

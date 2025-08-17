@@ -8,7 +8,9 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Optional;
 
 public interface TransactionRepository extends JpaRepository<Transaction, Long>, JpaSpecificationExecutor<Transaction> {
     @Query("""
@@ -25,4 +27,52 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
                              @Param("startDate") LocalDate startDate,
                              @Param("endDate") LocalDate endDate,
                              Pageable pageable);
+
+    @Query("""
+       SELECT (COUNT(t) > 0)
+       FROM Transaction t
+       WHERE t.date = :date
+         AND t.amount = :amount
+         AND LOWER(t.merchant) = LOWER(:merchant)
+       """)
+    boolean existsDuplicate(@Param("date") LocalDate date,
+                            @Param("amount") BigDecimal amount,
+                            @Param("merchant") String merchant);
+
+    @Query("""
+       SELECT t
+       FROM Transaction t
+       WHERE t.date = :date
+         AND t.amount = :amount
+         AND LOWER(t.merchant) = LOWER(:merchant)
+       """)
+    Optional<Transaction> findFirstDuplicate(@Param("date") LocalDate date,
+                                             @Param("amount") BigDecimal amount,
+                                             @Param("merchant") String merchant);
+
+    @Query("""
+    SELECT (COUNT(t) > 0)
+    FROM Transaction t
+    WHERE t.id <> :id
+      AND t.date = :date
+      AND t.amount = :amount
+      AND LOWER(TRIM(t.merchant)) = LOWER(TRIM(:merchant))
+""")
+    boolean existsDuplicateExcludingId(@Param("id") Long id,
+                                       @Param("date") LocalDate date,
+                                       @Param("amount") BigDecimal amount,
+                                       @Param("merchant") String merchant);
+
+    @Query("""
+    SELECT t
+    FROM Transaction t
+    WHERE t.id <> :id
+      AND t.date = :date
+      AND t.amount = :amount
+      AND LOWER(TRIM(t.merchant)) = LOWER(TRIM(:merchant))
+""")
+    Optional<Transaction> findFirstDuplicateExcludingId(@Param("id") Long id,
+                                                        @Param("date") LocalDate date,
+                                                        @Param("amount") BigDecimal amount,
+                                                        @Param("merchant") String merchant);
 }

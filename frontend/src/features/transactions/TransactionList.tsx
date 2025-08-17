@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback} from "react";
+import React, { useState, useEffect, useCallback} from "react";
 import {
     getTransactions,
     deleteTransaction,
@@ -17,7 +17,7 @@ import {
     TableCell,
     TableBody,
     IconButton,
-    CircularProgress,
+    // CircularProgress,
     Alert,
     Stack,
     Typography,
@@ -27,6 +27,10 @@ import {
     TableSortLabel,
     TextField,
     MenuItem,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
@@ -51,6 +55,9 @@ function TransactionList() {
     const [qInput, setQInput] = useState(q);
 
     const [catOptions, setCatOptions] = useState<Category[]>([]);
+
+    const [deleteOpen, setDeleteOpen] = useState(false);
+    const [deleteId, setDeleteId] = useState<number | null>(null);
 
     useEffect(() => {
         let ignore = false;
@@ -99,19 +106,6 @@ function TransactionList() {
         loadTransactions().catch(console.error);
     }, [loadTransactions]);
 
-    const handleDelete = async (id: number) => {
-        if (window.confirm("Are you sure you want to delete this transaction?")){
-            try {
-                await deleteTransaction(id);
-                setTransactions((prev)=>
-                    prev.filter((tx) => tx.id !== id))
-            } catch (error) {
-                console.error("Failed to delete transaction:", error);
-                setError("Failed to delete transaction. Please try again.");
-            }
-        }
-    };
-
     const handleOpenForm = (transaction: Transaction | null = null) => {
         setEditingTransaction(transaction);
         setIsFormOpen(true);
@@ -124,19 +118,14 @@ function TransactionList() {
     };
 
     const handleFormSubmit = async (formData: Omit<Transaction, "id">) => {
-        try {
-            if (editingTransaction) {
-                await updateTransaction(editingTransaction.id, formData);
-            }
-            else {
-                await createTransaction(formData);
-            }
-            handleCloseForm();
-            await loadTransactions();
-        } catch (error) {
-            console.error("Failed to save transaction:", error);
-            setError("Failed to save transaction. Please try again.");
+        // Let errors propagate to the dialog (TransactionForm) to handle UX.
+        if (editingTransaction) {
+            await updateTransaction(editingTransaction.id, formData);
+        } else {
+            await createTransaction(formData);
         }
+        handleCloseForm();
+        await loadTransactions();
     };
 
     const handleChangePage = (_: unknown, newPage: number) => {
@@ -156,6 +145,25 @@ function TransactionList() {
             setSortDir('desc'); // default to desc on new field
         }
         setPage(0); // reset to first page on sort change
+    };
+
+    const confirmDelete = async () => {
+        if (deleteId == null) return;
+        try {
+            await deleteTransaction(deleteId);
+            setTransactions(prev => prev.filter(tx => tx.id !== deleteId)); // optimistic remove
+        } catch (err) {
+            console.error("Failed to delete transaction:", err);
+            setError("Failed to delete transaction. Please try again.");
+        } finally {
+            setDeleteOpen(false);
+            setDeleteId(null);
+        }
+    };
+
+    const cancelDelete = () => {
+        setDeleteOpen(false);
+        setDeleteId(null);
     };
 
 
@@ -324,7 +332,11 @@ function TransactionList() {
                                         <IconButton size="small" onClick={() => handleOpenForm(tx)}>
                                             <EditIcon />
                                         </IconButton>
-                                        <IconButton size="small" onClick={() => handleDelete(tx.id)} color="error">
+                                        <IconButton
+                                            size="small"
+                                            onClick={() => { setDeleteId(tx.id); setDeleteOpen(true); }}
+                                            color="error"
+                                        >
                                             <DeleteIcon />
                                         </IconButton>
                                     </TableCell>
@@ -340,6 +352,20 @@ function TransactionList() {
                 onSubmit={handleFormSubmit}
                 transaction={editingTransaction}
             />
+            <Dialog open={deleteOpen} onClose={cancelDelete} maxWidth="xs" fullWidth>
+                <DialogTitle>Delete transaction?</DialogTitle>
+                <DialogContent>
+                    <Typography variant="body2">
+                        This action can’t be undone.
+                    </Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={cancelDelete}>Cancel</Button>
+                    <Button variant="contained" color="error" onClick={confirmDelete}>
+                        Delete
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Container>
     )
 
