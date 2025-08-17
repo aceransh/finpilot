@@ -2,14 +2,11 @@ package com.anshdesai.finpilot.controller;
 
 import com.anshdesai.finpilot.api.RuleRequest;
 import com.anshdesai.finpilot.api.RuleResponse;
-import com.anshdesai.finpilot.model.Category;
 import com.anshdesai.finpilot.model.Rule;
-import com.anshdesai.finpilot.repository.CategoryRepository;
-import com.anshdesai.finpilot.repository.RuleRepository;
+import com.anshdesai.finpilot.service.RuleService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
 import java.util.regex.Pattern;
@@ -18,19 +15,17 @@ import java.util.regex.Pattern;
 @RequestMapping("/api/v1/rules")
 public class RuleController {
 
-    private final RuleRepository ruleRepo;
-    private final CategoryRepository catRepo;
+    private final RuleService ruleService;
 
-    public RuleController(RuleRepository ruleRepo, CategoryRepository catRepo) {
-        this.ruleRepo = ruleRepo;
-        this.catRepo = catRepo;
+    public RuleController(RuleService ruleService) {
+        this.ruleService = ruleService;
     }
 
     // --------- CRUD ---------
 
     @GetMapping
     public List<RuleResponse> list() {
-        return ruleRepo.findAllByOrderByPriorityAsc().stream()
+        return ruleService.list().stream()
                 .map(this::toResponse)
                 .toList();
     }
@@ -38,26 +33,20 @@ public class RuleController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public RuleResponse create(@Valid @RequestBody RuleRequest req) {
-        Rule r = new Rule();
-        apply(req, r);
-        return toResponse(ruleRepo.save(r));
+        Rule saved = ruleService.create(req);
+        return toResponse(saved);
     }
 
     @PutMapping("/{id}")
     public RuleResponse update(@PathVariable UUID id, @Valid @RequestBody RuleRequest req) {
-        Rule r = ruleRepo.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Rule not found"));
-        apply(req, r);
-        return toResponse(ruleRepo.save(r));
+        Rule saved = ruleService.update(id, req);
+        return toResponse(saved);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable UUID id) {
-        if (!ruleRepo.existsById(id)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Rule not found");
-        }
-        ruleRepo.deleteById(id);
+        ruleService.delete(id);
     }
 
     // --------- Test endpoint ---------
@@ -68,7 +57,7 @@ public class RuleController {
     @PostMapping("/test")
     public TestResponse test(@RequestBody TestRequest body) {
         String merchant = normalize(body.merchant());
-        for (Rule r : ruleRepo.findAllByEnabledTrueOrderByPriorityAsc()) {
+        for (Rule r : ruleService.listEnabled()) {
             if (matches(merchant, r)) {
                 return new TestResponse(
                         true,
@@ -83,25 +72,12 @@ public class RuleController {
 
     // --------- helpers ---------
 
-    private void apply(RuleRequest req, Rule r) {
-        // resolve category
-        UUID catId = req.getCategoryId();
-        Category cat = catRepo.findById(catId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Category not found"));
-
-        r.setPattern(req.getPattern().trim());
-        r.setMatchType(req.getMatchType().trim());  // "CONTAINS" | "REGEX"
-        r.setCategory(cat);
-        r.setPriority(req.getPriority() == null ? 100 : req.getPriority());
-        r.setEnabled(req.getEnabled() == null || req.getEnabled()); // default true
-    }
-
     private RuleResponse toResponse(Rule r) {
         RuleResponse resp = new RuleResponse();
         resp.setId(r.getId().toString());
         resp.setPattern(r.getPattern());
         resp.setMatchType(r.getMatchType());
-        resp.setCategoryId(r.getCategory().getId().toString());   // <-- String
+        resp.setCategoryId(r.getCategory().getId().toString());
         resp.setCategoryName(r.getCategory().getName());
         resp.setPriority(r.getPriority());
         resp.setEnabled(r.isEnabled());

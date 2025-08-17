@@ -1,108 +1,87 @@
-### Base (edit if you changed ports)
 @host = http://localhost:8080
 @json = application/json
 
-### 1) List categories as default user ("demo")
-GET {{host}}/api/v1/categories
+### 1) List rules as DEMO (expected: maybe empty or whatever you’ve made before)
+GET {{host}}/api/v1/rules
 Accept: {{json}}
 
-### 2) List categories as "alice" (should be independent set)
-GET {{host}}/api/v1/categories
+### 2) List rules as ALICE (expected: empty initially)
+GET {{host}}/api/v1/rules
 Accept: {{json}}
 X-Demo-User: alice
 
-### 3) Create a category for alice
+### 3) Create a category for ALICE (needed to attach to a rule)
 POST {{host}}/api/v1/categories
 Accept: {{json}}
 Content-Type: {{json}}
 X-Demo-User: alice
 
 {
-  "name": "Alice Groceries",
+  "name": "Coffee",
   "type": "EXPENSE",
-  "color": "#44AA55"
+  "color": "#795548"
 }
 
-### 4) Verify alice sees her new category (demo should NOT)
+### 4) List ALICE categories, copy the "id" of Coffee into {{aliceCoffeeCatId}} below
 GET {{host}}/api/v1/categories
 Accept: {{json}}
 X-Demo-User: alice
 
-### 6) Create a transaction (demo) -> expect 201
-# pick a valid categoryId from GET /categories (demo user)
-@catId = 9d9a1c08-fab2-402a-bb84-2028b18d9c46
+### 5) Create a CONTAINS rule for ALICE (pattern: "starbucks")
+# Replace the placeholder with the Coffee category id you copied
+@aliceCoffeeCatId = 4aed0109-54b2-4f8d-94f6-add8518ec1f0
 
-POST {{host}}/api/v1/transactions?force=false
+POST {{host}}/api/v1/rules
+Accept: {{json}}
+Content-Type: {{json}}
+X-Demo-User: alice
+
+{
+  "pattern": "starbucks",
+  "matchType": "CONTAINS",
+  "categoryId": "{{aliceCoffeeCatId}}",
+  "priority": 50,
+  "enabled": true
+}
+
+### 6) Verify ALICE rules show the new rule
+GET {{host}}/api/v1/rules
+Accept: {{json}}
+X-Demo-User: alice
+
+### 7) Test the rule matcher as ALICE (should match)
+POST {{host}}/api/v1/rules/test
+Accept: {{json}}
+Content-Type: {{json}}
+X-Demo-User: alice
+
+{ "merchant": "STARBUCKS #123" }
+
+### 8) Create a tx as ALICE that should auto-categorize via the rule
+POST {{host}}/api/v1/transactions
+Accept: {{json}}
+Content-Type: {{json}}
+X-Demo-User: alice
+
+{
+  "date": "2025-08-12",
+  "amount": -6.50,
+  "merchant": "Starbucks #456",
+  "category": ""
+}
+
+### 9) List ALICE transactions and confirm the category is "Coffee"
+GET {{host}}/api/v1/transactions?page=0&size=5&sort=date,desc
+Accept: {{json}}
+X-Demo-User: alice
+
+### 10) Prove isolation: DEMO should NOT see ALICE rules
+GET {{host}}/api/v1/rules
+Accept: {{json}}
+
+### 11) Prove matcher isolation: DEMO hitting /rules/test may return a different result or none
+POST {{host}}/api/v1/rules/test
 Accept: {{json}}
 Content-Type: {{json}}
 
-{
-  "date": "2025-08-10",
-  "amount": -12.34,
-  "merchant": "Starbucks #123",
-  "category": "",
-  "categoryId": "{{catId}}"
-}
-
-### 7) Re-create the SAME transaction (demo) with force=false -> expect 409 DUPLICATE
-POST {{host}}/api/v1/transactions?force=false
-Accept: {{json}}
-Content-Type: {{json}}
-
-{
-  "date": "2025-08-10",
-  "amount": -12.34,
-  "merchant": "Starbucks #123",
-  "category": "",
-  "categoryId": "{{catId}}"
-}
-
-### 8) Now force it -> expect 201 (duplicate allowed)
-POST {{host}}/api/v1/transactions?force=true
-Accept: {{json}}
-Content-Type: {{json}}
-
-{
-  "date": "2025-08-10",
-  "amount": -12.34,
-  "merchant": "Starbucks #123",
-  "category": "",
-  "categoryId": "{{catId}}"
-}
-
-### 9) Search filters example (merchant contains "star", this month)
-GET {{host}}/api/v1/transactions?q=star&from=2025-08-01&to=2025-08-31&sort=date,desc&page=0&size=10
-Accept: {{json}}
-
-### 10) Update an existing tx WITHOUT force -> expect 409 if it becomes a dup
-# Replace {{txId}} with an id you saw in GET /transactions
-@txId = 23
-
-PUT {{host}}/api/v1/transactions/{{txId}}?force=false
-Accept: {{json}}
-Content-Type: {{json}}
-
-{
-  "date": "2025-08-10",
-  "amount": -12.34,
-  "merchant": "Starbucks #123",
-  "category": "",
-  "categoryId": "{{catId}}"
-}
-
-### 11) Force the same update -> expect 200
-PUT {{host}}/api/v1/transactions/{{txId}}?force=true
-Accept: {{json}}
-Content-Type: {{json}}
-
-{
-  "date": "2025-08-10",
-  "amount": -12.34,
-  "merchant": "Starbucks #123",
-  "category": "",
-  "categoryId": "{{catId}}"
-}
-
-### 12) Delete a tx (demo)
-DELETE {{host}}/api/v1/transactions/{{txId}}
-Accept: {{json}}
+{ "merchant": "STARBUCKS #123" }

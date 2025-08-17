@@ -4,6 +4,7 @@ import com.anshdesai.finpilot.model.Category;
 import com.anshdesai.finpilot.model.Rule;
 import com.anshdesai.finpilot.model.Transaction;
 import com.anshdesai.finpilot.repository.RuleRepository;
+import com.anshdesai.finpilot.security.CurrentUser;
 import org.springframework.stereotype.Service;
 
 import java.util.Locale;
@@ -14,15 +15,18 @@ import java.util.regex.Pattern;
 public class RuleEngineService {
 
     private final RuleRepository ruleRepo;
+    private final CurrentUser currentUser;   // ⬅️ new
 
-    public RuleEngineService(RuleRepository ruleRepo) {
+    public RuleEngineService(RuleRepository ruleRepo, CurrentUser currentUser) {
         this.ruleRepo = ruleRepo;
+        this.currentUser = currentUser;
     }
 
     /** Try to find a Category for the given merchant using enabled rules (priority ASC). */
     public Optional<Category> apply(String merchant) {
         String norm = normalize(merchant);
-        for (Rule r : ruleRepo.findAllByEnabledTrueOrderByPriorityAsc()) {
+        String uid  = currentUser.userId();
+        for (Rule r : ruleRepo.findAllByUserIdAndEnabledTrueOrderByPriorityAsc(uid)) {
             if (matches(norm, r)) {
                 return Optional.of(r.getCategory());
             }
