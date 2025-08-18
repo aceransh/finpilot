@@ -1,4 +1,6 @@
-import axios from 'axios';
+import axios, { AxiosHeaders } from 'axios';
+import { getAuth } from 'firebase/auth';
+import '../../firebase';
 
 /* ----------------------------- HTTP client ----------------------------- */
 export const client = axios.create({ baseURL: '/api/v1' });
@@ -158,3 +160,31 @@ export const testRule = async (merchant: string) => {
     }>('/rules/test', { merchant });
     return data;
 };
+
+/* ================================= Auth =============================== */
+client.interceptors.request.use(async (config) => {
+    // make sure headers is the right type
+    const headers = AxiosHeaders.from(config.headers);
+
+    try {
+        const auth = getAuth();
+        const user = auth.currentUser;
+
+        if (user) {
+            const token = await user.getIdToken();
+            headers.set('Authorization', `Bearer ${token}`);
+            headers.delete('X-Demo-User');
+        } else {
+            headers.set('X-Demo-User', 'demo');
+            headers.delete('Authorization');
+        }
+    } catch {
+        // safe fallback for local/dev
+        headers.set('X-Demo-User', 'demo');
+        headers.delete('Authorization');
+    }
+
+    // assign the correctly typed headers back
+    config.headers = headers;
+    return config;
+});
