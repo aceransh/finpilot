@@ -104,9 +104,11 @@ public class AuthContextFilter extends OncePerRequestFilter {
         currentUser.setUid(uid);
         currentUser.setEmail(email);          // may be null in demo mode
         currentUser.setDisplayName(name);     // may be null in demo mode
+
         response.setHeader("X-Auth-User", uid);
         if (email != null) response.setHeader("X-Auth-Email", email);
         if (name  != null) response.setHeader("X-Auth-Name",  name);
+
         filterChain.doFilter(request, response);
     }
 }
