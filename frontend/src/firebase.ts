@@ -21,7 +21,7 @@ export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
 // DEV helper: expose a function to get the current Firebase ID token
-if ((import.meta as any)?.env?.MODE === 'development') {
+if (process.env.NODE_ENV === 'development') {
     (window as any).getIdToken = async (force = true) => {
         const { getAuth } = await import('firebase/auth');
         return getAuth().currentUser?.getIdToken(force);

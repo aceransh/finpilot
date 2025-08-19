@@ -1,33 +1,43 @@
-import React from "react";
-import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { auth } from "../../firebase";
-import { Button, Stack, Typography } from "@mui/material";
+// frontend/src/features/auth/Login.tsx
+import React, { useEffect } from 'react';
+import { Button, Container, Stack, Typography } from '@mui/material';
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { auth } from '../../firebase';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from './AuthProvider';
 
 export default function Login() {
-    const handleGoogleLogin = async () => {
-        try {
-            const provider = new GoogleAuthProvider();
-            const result = await signInWithPopup(auth, provider);
+    const navigate = useNavigate();
+    const location = useLocation() as { state?: { from?: Location } };
+    const { user } = useAuth();
 
-            // Grab ID token from Firebase user
-            const token = await result.user.getIdToken();
+    // where to go after login: the page the guard sent us from, or "/"
+    const goTo =
+        (location.state?.from as any)?.pathname || '/';
 
-            console.log("Logged in:", result.user.email);
-            console.log("ID token:", token);
-
-            // Later: send token in Authorization header to backend
-            // localStorage.setItem("token", token);
-        } catch (err) {
-            console.error("Login failed", err);
+    // already signed in? bounce immediately
+    useEffect(() => {
+        if (user) {
+            navigate(goTo, { replace: true });
         }
+    }, [user, goTo, navigate]);
+
+    const handleGoogleLogin = async () => {
+        await signInWithPopup(auth, new GoogleAuthProvider());
+        // after popup completes, go where we intended
+        navigate(goTo, { replace: true });
     };
 
     return (
-        <Stack spacing={2} alignItems="center" sx={{ mt: 6 }}>
-            <Typography variant="h5">Login to Finpilot</Typography>
-            <Button variant="contained" onClick={handleGoogleLogin}>
-                Sign in with Google
-            </Button>
-        </Stack>
+        <Container sx={{ mt: 6 }}>
+            <Typography variant="h5" align="center" gutterBottom>
+                Login to Finpilot
+            </Typography>
+            <Stack alignItems="center" sx={{ mt: 2 }}>
+                <Button variant="contained" onClick={handleGoogleLogin}>
+                    Sign in with Google
+                </Button>
+            </Stack>
+        </Container>
     );
 }

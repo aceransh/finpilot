@@ -119,7 +119,7 @@ export default function CategoriesPage() {
                             <TableCell>Name</TableCell>
                             <TableCell>Type</TableCell>
                             <TableCell>Color</TableCell>
-                            <TableCell align="right">Actions</TableCell> {/* NEW */}
+                            <TableCell align="right">Actions {/* NEW */}</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
