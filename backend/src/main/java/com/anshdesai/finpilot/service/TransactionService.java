@@ -6,7 +6,6 @@ import com.anshdesai.finpilot.model.Transaction;
 import com.anshdesai.finpilot.api.TransactionMapper;
 import com.anshdesai.finpilot.repository.CategoryRepository;
 import com.anshdesai.finpilot.repository.TransactionRepository;
-import com.anshdesai.finpilot.security.CurrentUser;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -16,6 +15,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.stereotype.Service;
 import org.springframework.web.ErrorResponseException;
 import org.springframework.web.server.ResponseStatusException;
+import com.anshdesai.finpilot.security.CurrentUser;
 
 import java.time.LocalDate;
 import java.util.Map;

@@ -30,6 +30,20 @@ public class Transaction {
     @Column(name = "user_id", nullable = false, length = 128)
     private String userId;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "plaid_item_id")   // MUST match V6 column name
+    private PlaidItem plaidItem;
+
+    @Column(name = "plaid_account_id", length = 256)
+    private String plaidAccountId;
+
+    @Column(name = "plaid_transaction_id", length = 256)
+    private String plaidTxnId;
+
+    // 4) Whether Plaid marks this txn as pending (auth holds, etc.)
+    @Column(name = "pending", nullable = false)
+    private boolean pending = false;
+
     public Transaction() {}
 
     public Transaction(LocalDate date, BigDecimal amount, String merchant, String category) {

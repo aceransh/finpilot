@@ -2,7 +2,6 @@ package com.anshdesai.finpilot.controller;
 
 import com.anshdesai.finpilot.security.CurrentUser;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
