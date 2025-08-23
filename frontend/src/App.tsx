@@ -10,6 +10,7 @@ import CategoriesPage from './features/categories/CategoriesPage';
 import RulesPage from './features/rules/RulesPage';
 import Login from './features/auth/Login';
 import { useAuth } from './features/auth/AuthProvider';
+import LinkButton from './features/plaid/LinkButton';
 
 // --- add this tiny guard inside the same file ---
 function RequireAuth({ children }: { children: React.ReactElement }) {
@@ -32,6 +33,16 @@ function RequireAuth({ children }: { children: React.ReactElement }) {
 
 function App() {
     const { user, loading, signOut } = useAuth();
+
+    React.useEffect(() => {
+        const fetchToken = async () => {
+            if (user) {
+                const token = await user.getIdToken(true);
+                console.log("Firebase ID token:", token);
+            }
+        };
+        fetchToken();
+    }, [user]);
 
     return (
         <BrowserRouter>
@@ -59,6 +70,10 @@ function App() {
                     <Button component={Link} to="/" variant="outlined">Transactions</Button>
                     <Button component={Link} to="/categories" variant="outlined">Categories</Button>
                     <Button component={Link} to="/rules" variant="outlined">Rules</Button>
+                </Stack>
+
+                <Stack direction="row" justifyContent="center" sx={{ mb: 3 }}>
+                    <LinkButton />
                 </Stack>
 
                 {/* routes */}

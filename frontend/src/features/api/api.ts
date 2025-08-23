@@ -188,3 +188,14 @@ client.interceptors.request.use(async (config) => {
     config.headers = headers;
     return config;
 });
+
+/* ================================= Plaid =============================== */
+type LinkTokenRes = { link_token: string } | { linkToken: string };
+
+export const createPlaidLinkToken = async (): Promise<string> => {
+    const { data } = await client.post<LinkTokenRes>('/plaid/link/token/create', {});
+    const token = (data as any).link_token ?? (data as any).linkToken;
+    if (!token) throw new Error('Missing link_token in response');
+    return token;
+};
+

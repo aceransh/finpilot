@@ -1,6 +1,7 @@
 package com.anshdesai.finpilot.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import java.util.List;
 
 /**
  * Binds to:
@@ -22,6 +23,10 @@ public class PlaidProperties {
     // app.plaid.secret (no default, must be provided)
     private String secret;
 
+    private List<String> products;
+
+    private List<String> countryCodes;
+
     // --- getters/setters (needed by Spring) ---
     public String getEnv() { return env; }
     public void setEnv(String env) { this.env = env; }
@@ -32,11 +37,20 @@ public class PlaidProperties {
     public String getSecret() { return secret; }
     public void setSecret(String secret) { this.secret = secret; }
 
+    public List<String> getProducts() { return products; }
+    public void setProducts(List<String> products) { this.products = products; }
+
+    public List<String> getCountryCodes() { return countryCodes; }
+    public void setCountryCodes(List<String> countryCodes) { this.countryCodes = countryCodes; }
+
     @Override
     public String toString() {
-        // Never log the secret. Show a hint that it is present.
         String masked = (secret == null || secret.isBlank()) ? "MISSING" : "SET";
         return "PlaidProperties{env='" + env + "', clientId='" +
-                (clientId == null ? "MISSING" : clientId) + "', secret=" + masked + "}";
+                (clientId == null ? "MISSING" : clientId) +
+                "', secret=" + masked +
+                ", products=" + products +
+                ", countryCodes=" + countryCodes +
+                "}";
     }
 }
