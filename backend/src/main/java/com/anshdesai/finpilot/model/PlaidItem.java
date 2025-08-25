@@ -10,7 +10,7 @@ import java.util.UUID;
 public class PlaidItem {
     @Id
     @GeneratedValue
-    @Column(columnDefinition = "uuid")
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.UUID)
     private UUID id;
 
     @Column(name = "user_id", nullable = false, length = 128)

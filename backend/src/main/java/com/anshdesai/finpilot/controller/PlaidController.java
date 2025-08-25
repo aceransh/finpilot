@@ -8,7 +8,9 @@ import org.springframework.web.bind.annotation.*;
 import com.anshdesai.finpilot.security.CurrentUser;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/plaid")
@@ -45,14 +47,37 @@ public class PlaidController {
             body.put("link_token", linkToken);
             return ResponseEntity.ok(body);
         } catch (Exception ex) {
-            body.put("error", ex.getMessage());
+            body.put("error", ex.getMessage()); // <-- use 'ex'
             return ResponseEntity.status(502).body(body);
         }
     }
 
     @PostMapping("/public-token/exchange")
-    public PlaidPublicTokenExchangeResponse exchange(@RequestBody PlaidPublicTokenExchangeRequest body) throws Exception {
-        String userId = currentUser.userId(); // from your request-scoped bean
-        return plaidService.exchangePublicToken(userId, body.getPublicToken());
+    public ResponseEntity<?> exchange(@RequestBody PlaidPublicTokenExchangeRequest body) {
+        Map<String, Object> out = new java.util.HashMap<>();
+        try {
+            String userId = currentUser.userId();
+            var resp = plaidService.exchangePublicToken(userId, body.getPublicToken());
+            return ResponseEntity.ok(resp);
+        } catch (Exception ex) {
+            out.put("ok", false);
+            out.put("error", ex.getMessage()); // <- show actual cause
+            return ResponseEntity.status(502).body(out);
+        }
+    }
+
+    @GetMapping("/items/{id}/accounts")
+    public List<String> getAccountsForItem(@PathVariable UUID id) throws Exception {
+        String userId = currentUser.userId();
+        return plaidService.getAccountsForItem(userId, id);
+    }
+
+    @GetMapping("/items/{id}/probe-transactions")
+    public List<Map<String, Object>> probeTransactions(
+            @PathVariable UUID id,
+            @RequestParam(defaultValue = "30") int days
+    ) throws Exception {
+        String userId = currentUser.userId();
+        return plaidService.probeTransactions(userId, id, days);
     }
 }
