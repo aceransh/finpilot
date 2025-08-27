@@ -35,6 +35,7 @@ import {
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import TransactionForm from "./TransactionForm";
+import { syncPlaidItem } from '../api/api';
 
 function TransactionList() {
     const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -147,6 +148,19 @@ function TransactionList() {
         setPage(0); // reset to first page on sort change
     };
 
+    const handleManualSync = async () => {
+        const itemId = window.prompt('Paste Plaid Item UUID to sync:');
+        if (!itemId) return;
+
+        try {
+            const res = await syncPlaidItem(itemId.trim());
+            alert(`Sync complete:\ncreated=${res.created}\nupdated=${res.updated}\nremoved=${res.removed}\nskipped=${res.skipped}`);
+            await loadTransactions();
+        } catch (e: any) {
+            alert(`Sync failed: ${e?.response?.data?.error || e.message}`);
+        }
+    };
+
     const confirmDelete = async () => {
         if (deleteId == null) return;
         try {
@@ -203,7 +217,14 @@ function TransactionList() {
                 <Typography variant='h4' component='h1'>
                     Recent Transactions
                 </Typography>
-                <Button variant="contained" onClick={() => handleOpenForm()}>Add Transaction</Button>
+                <Stack direction="row" spacing={1}>
+                    <Button variant="outlined" onClick={handleManualSync}>
+                        Sync (paste Item ID)
+                    </Button>
+                    <Button variant="contained" onClick={() => handleOpenForm()}>
+                        Add Transaction
+                    </Button>
+                </Stack>
             </Stack>
             <Paper>
                 <Stack direction="row" spacing={2} alignItems="center" sx={{ p: 2 }}>

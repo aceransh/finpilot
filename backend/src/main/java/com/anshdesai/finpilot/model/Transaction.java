@@ -38,7 +38,7 @@ public class Transaction {
     private String plaidAccountId;
 
     @Column(name = "plaid_transaction_id", length = 256)
-    private String plaidTxnId;
+    private String plaidTransactionId;
 
     // 4) Whether Plaid marks this txn as pending (auth holds, etc.)
     @Column(name = "pending", nullable = false)
@@ -54,27 +54,100 @@ public class Transaction {
     }
 
     // getters/setters
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
 
-    public LocalDate getDate() { return date; }
-    public void setDate(LocalDate date) { this.date = date; }
+    public Long getId() {
+        return id;
+    }
 
-    public BigDecimal getAmount() { return amount; }
-    public void setAmount(BigDecimal amount) { this.amount = amount; }
+    public void setId(Long id) {
+        this.id = id;
+    }
 
-    public String getMerchant() { return merchant; }
-    public void setMerchant(String merchant) { this.merchant = merchant; }
+    public LocalDate getDate() {
+        return date;
+    }
 
-    public String getCategory() { return category; }
-    public void setCategory(String category) { this.category = category; }
+    public void setDate(LocalDate date) {
+        this.date = date;
+    }
 
-    public Category getCategoryRef() { return categoryRef; }
-    public void setCategoryRef(Category categoryRef) { this.categoryRef = categoryRef; }
+    public BigDecimal getAmount() {
+        return amount;
+    }
 
-    public boolean isCategoryLocked() { return categoryLocked; }
-    public void setCategoryLocked(boolean categoryLocked) { this.categoryLocked = categoryLocked; }
+    public void setAmount(BigDecimal amount) {
+        this.amount = amount;
+    }
 
-    public String getUserId() { return userId; }
-    public void setUserId(String userId) { this.userId = userId; }
+    public String getMerchant() {
+        return merchant;
+    }
+
+    public void setMerchant(String merchant) {
+        this.merchant = merchant;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
+    }
+
+    public Category getCategoryRef() {
+        return categoryRef;
+    }
+
+    public void setCategoryRef(Category categoryRef) {
+        this.categoryRef = categoryRef;
+    }
+
+    public boolean isCategoryLocked() {
+        return categoryLocked;
+    }
+
+    public void setCategoryLocked(boolean categoryLocked) {
+        this.categoryLocked = categoryLocked;
+    }
+
+    public String getUserId() {
+        return userId;
+    }
+
+    public void setUserId(String userId) {
+        this.userId = userId;
+    }
+
+    public PlaidItem getPlaidItem() {
+        return plaidItem;
+    }
+
+    public void setPlaidItem(PlaidItem plaidItem) {
+        this.plaidItem = plaidItem;
+    }
+
+    public String getPlaidAccountId() {
+        return plaidAccountId;
+    }
+
+    public void setPlaidAccountId(String plaidAccountId) {
+        this.plaidAccountId = plaidAccountId;
+    }
+
+    public String getPlaidTransactionId() {
+        return plaidTransactionId;
+    }
+
+    public void setPlaidTransactionId(String plaidTransactionId) {
+        this.plaidTransactionId = plaidTransactionId;
+    }
+
+    public boolean isPending() {
+        return pending;
+    }
+
+    public void setPending(boolean pending) {
+        this.pending = pending;
+    }
 }

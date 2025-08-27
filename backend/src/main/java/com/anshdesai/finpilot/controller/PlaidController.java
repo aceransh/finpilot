@@ -1,12 +1,13 @@
 package com.anshdesai.finpilot.controller;
 
 import com.anshdesai.finpilot.api.PlaidPublicTokenExchangeRequest;
-import com.anshdesai.finpilot.api.PlaidPublicTokenExchangeResponse;
 import com.anshdesai.finpilot.service.PlaidService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.anshdesai.finpilot.security.CurrentUser;
+import com.anshdesai.finpilot.api.PlaidSyncResponse;
 
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,5 +80,13 @@ public class PlaidController {
     ) throws Exception {
         String userId = currentUser.userId();
         return plaidService.probeTransactions(userId, id, days);
+    }
+
+    @PostMapping("/items/{id}/sync")
+    public PlaidSyncResponse syncItem(
+            @PathVariable UUID id
+    ) throws Exception {
+        String userId = currentUser.userId();
+        return plaidService.transactionsSync(userId, id);
     }
 }

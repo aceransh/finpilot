@@ -192,10 +192,23 @@ client.interceptors.request.use(async (config) => {
 /* ================================= Plaid =============================== */
 type LinkTokenRes = { link_token: string } | { linkToken: string };
 
+export type PlaidSyncResponse = {
+    created: number;
+    updated: number;
+    removed: number;
+    skipped: number;
+};
+
 export const createPlaidLinkToken = async (): Promise<string> => {
     const { data } = await client.post<LinkTokenRes>('/plaid/link/token/create', {});
     const token = (data as any).link_token ?? (data as any).linkToken;
     if (!token) throw new Error('Missing link_token in response');
     return token;
 };
+
+export async function syncPlaidItem(itemId: string): Promise<PlaidSyncResponse> {
+    // Use axios client, not fetch
+    const { data } = await client.post<PlaidSyncResponse>(`/plaid/items/${itemId}/sync`);
+    return data;
+}
 

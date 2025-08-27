@@ -38,8 +38,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Helper: sign in with Google (popup)
     const signInWithGoogle = async () => {
         const provider = new GoogleAuthProvider();
-        await signInWithPopup(auth, provider);
-        // user state updates via onAuthStateChanged
+        try {
+            await signInWithPopup(auth, provider);
+            // user state updates via onAuthStateChanged
+        } catch (err: any) {
+            // Known popup/COOP-ish issues — fallback to redirect
+            const code = err?.code as string | undefined;
+            const msg = (err?.message as string | '')?.toLowerCase() ?? '';
+
+            const looksLikePopupBlocked =
+                code === 'auth/popup-blocked' ||
+                code === 'auth/popup-closed-by-user' ||
+                code === 'auth/cancelled-popup-request' ||
+                msg.includes('cross-origin-opener-policy') ||
+                msg.includes('window.closed');
+
+            if (looksLikePopupBlocked) {
+                // Redirect flow is more tolerant in locked-down browsers
+                const { signInWithRedirect } = await import('firebase/auth');
+                await signInWithRedirect(auth, provider);
+                return;
+            }
+
+            // If it’s some other error, rethrow for your UI to handle/toast
+            throw err;
+        }
     };
 
     // Helper: sign out

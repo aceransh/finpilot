@@ -34,6 +34,9 @@ public class PlaidItem {
     @Column(name = "updated_at", columnDefinition = "timestamptz", insertable = false, updatable = false)
     private OffsetDateTime updatedAt;
 
+    @Column(name = "next_cursor")              // map to V8 column
+    private String nextCursor;
+
     // Getters and Setters
 
     public OffsetDateTime getUpdatedAt() {
@@ -98,6 +101,22 @@ public class PlaidItem {
 
     public void setId(UUID id) {
         this.id = id;
+    }
+
+    public String getPlaidItemId() {
+        return plaidItemId;
+    }
+
+    public void setPlaidItemId(String plaidItemId) {
+        this.plaidItemId = plaidItemId;
+    }
+
+    public String getNextCursor() {
+        return nextCursor;
+    }
+
+    public void setNextCursor(String nextCursor) {
+        this.nextCursor = nextCursor;
     }
 }
 

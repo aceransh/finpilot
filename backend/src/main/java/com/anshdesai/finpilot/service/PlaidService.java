@@ -1,5 +1,6 @@
 package com.anshdesai.finpilot.service;
 
+import com.anshdesai.finpilot.api.PlaidSyncResponse;
 import com.plaid.client.model.*;
 import com.plaid.client.request.PlaidApi;
 import com.anshdesai.finpilot.config.PlaidProperties;
@@ -8,10 +9,15 @@ import org.springframework.stereotype.Service;
 import retrofit2.Response;
 import com.anshdesai.finpilot.model.PlaidItem;
 import com.anshdesai.finpilot.repository.PlaidItemRepository;
+import com.anshdesai.finpilot.repository.TransactionRepository;
 import com.plaid.client.model.AccountsGetRequest;
 import com.plaid.client.model.AccountsGetResponse;
+import com.plaid.client.model.TransactionsSyncRequest;
+import com.plaid.client.model.TransactionsSyncRequestOptions;
+import com.plaid.client.model.TransactionsSyncResponse;
 
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
@@ -24,12 +30,14 @@ public class PlaidService {
     private final PlaidProperties props;
     private final CryptoService crypto;
     private final PlaidItemRepository plaidItemRepo;
+    private final TransactionRepository txRepo;
 
-    public PlaidService(PlaidApi plaidApi, PlaidProperties props, CryptoService crypto, PlaidItemRepository plaidItemRepo) {
+    public PlaidService(PlaidApi plaidApi, PlaidProperties props, CryptoService crypto, PlaidItemRepository plaidItemRepo, TransactionRepository txRepo) {
         this.plaidApi = plaidApi;
         this.props = props;
         this.crypto = crypto;
         this.plaidItemRepo = plaidItemRepo;
+        this.txRepo = txRepo;
     }
 
     // tiny helper: ["US","CA"] -> [CountryCode.US, CountryCode.CA]
@@ -197,5 +205,84 @@ public class PlaidService {
             }
             return m;
         }).toList();
+    }
+
+    private boolean hasPlaidTxn(String userId, String plaidTxnId) {
+        if (plaidTxnId == null || plaidTxnId.isBlank()) return false;
+        return txRepo.existsByUserIdAndPlaidTransactionId(userId, plaidTxnId);
+    }
+
+    public com.anshdesai.finpilot.api.PlaidSyncResponse transactionsSync(String userId, UUID itemDbId) throws Exception {
+        // 1) Load item owned by this user
+        var item = plaidItemRepo.findByIdAndUserId(itemDbId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("Item not found"));
+
+        // 2) Decrypt access token
+        String accessToken = crypto.decrypt(item.getAccessTokenEnc());
+
+        // 3) Build options (ask Plaid for PFC)
+        TransactionsSyncRequestOptions opts = new TransactionsSyncRequestOptions()
+                .includePersonalFinanceCategory(true);
+
+        // 4) Build request with existing cursor (null is fine on first run)
+        TransactionsSyncRequest req = new TransactionsSyncRequest()
+                .accessToken(accessToken)
+                .cursor(item.getNextCursor())
+                .options(opts);
+
+        // 5) Call Plaid once
+        Response<TransactionsSyncResponse> resp = plaidApi.transactionsSync(req).execute();
+        if (!resp.isSuccessful() || resp.body() == null) {
+            String err = (resp.errorBody() != null) ? resp.errorBody().string() : "unknown";
+            throw new Exception("transactionsSync failed: " + err);
+        }
+
+        TransactionsSyncResponse body = resp.body();
+
+        // 6) Persist the new cursor for next time
+        item.setNextCursor(body.getNextCursor());
+        plaidItemRepo.save(item);
+
+        int created = 0, updated = 0, removed = 0, skipped = 0;
+
+        // --- 7) Handle ADDED ---
+        if (body.getAdded() != null) {
+            for (com.plaid.client.model.Transaction pt : body.getAdded()) {
+                String plaidTxnId = pt.getTransactionId();
+                if (hasPlaidTxn(userId, plaidTxnId)) {
+                    skipped++;
+                    continue;
+                }
+
+                com.anshdesai.finpilot.model.Transaction tx = new com.anshdesai.finpilot.model.Transaction();
+                tx.setUserId(userId);
+                tx.setDate(pt.getDate());
+                tx.setAmount(BigDecimal.valueOf(pt.getAmount()).negate()); // Plaid is +ve for debit, we store -ve
+                tx.setMerchant(pt.getName() != null ? pt.getName() : "");
+                var pfc = pt.getPersonalFinanceCategory();
+                if (pfc != null && pfc.getPrimary() != null) {
+                    tx.setCategory(pfc.getPrimary()); // legacy text field
+                }
+                tx.setPlaidTransactionId(plaidTxnId);
+                tx.setPlaidAccountId(pt.getAccountId());
+                tx.setPending(Boolean.TRUE.equals(pt.getPending()));
+                tx.setPlaidItem(item);
+
+                txRepo.save(tx);
+                created++;
+            }
+        }
+
+        // --- 8) Return counts (modified/removed handled in later steps) ---
+        boolean firstSync = (item.getNextCursor() == null || item.getNextCursor().isBlank());
+        int modCount = body.getModified() == null ? 0 : body.getModified().size();
+        int remCount = body.getRemoved() == null ? 0 : body.getRemoved().size();
+
+        return new com.anshdesai.finpilot.api.PlaidSyncResponse(
+                created,
+                modCount,
+                remCount,
+                firstSync
+        );
     }
 }

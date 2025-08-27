@@ -76,4 +76,6 @@ public interface TransactionRepository
 
     // (If you ever need it) page all by user id
     Page<Transaction> findAllByUserId(String userId, Pageable pageable);
+
+    boolean existsByUserIdAndPlaidTransactionId(String userId, String plaidTransactionId);
 }
