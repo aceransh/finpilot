@@ -285,5 +285,4 @@ public class PlaidService {
                 firstSync
         );
     }
-    // TRASH PROJECT U SHOULD KYS
 }
