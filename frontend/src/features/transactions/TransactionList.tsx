@@ -6,7 +6,9 @@ import {
     updateTransaction,
     getCategories,
     Category,
-    Transaction
+    Transaction,
+    listPlaidItems,
+    PlaidItemSummary
 } from '../api/api';
 import {
     Container,
@@ -60,6 +62,9 @@ function TransactionList() {
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [deleteId, setDeleteId] = useState<number | null>(null);
 
+    const [plaidItems, setPlaidItems] = useState<PlaidItemSummary[]>([]);
+    const [selectedItemId, setSelectedItemId] = useState<string>('');
+
     useEffect(() => {
         let ignore = false;
         (async () => {
@@ -83,6 +88,25 @@ function TransactionList() {
 
         return () => clearTimeout(t);
     }, [qInput, q]);
+
+    useEffect(() => {
+        let ignore = false;
+        (async () => {
+            try {
+                const items = await listPlaidItems();
+                if (!ignore) {
+                    setPlaidItems(items);
+                    // preselect the newest item if any
+                    if (items.length && !selectedItemId) {
+                        setSelectedItemId(items[0].id);
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load Plaid items:', e);
+            }
+        })();
+        return () => { ignore = true; };
+    }, []);
 
 
     const loadTransactions = useCallback(async () => {
@@ -149,12 +173,13 @@ function TransactionList() {
     };
 
     const handleManualSync = async () => {
-        const itemId = window.prompt('Paste Plaid Item UUID to sync:');
-        if (!itemId) return;
-
+        if (!selectedItemId) {
+            alert('Pick a bank first.');
+            return;
+        }
         try {
-            const res = await syncPlaidItem(itemId.trim());
-            alert(`Sync complete:\ncreated=${res.created}\nupdated=${res.updated}\nremoved=${res.removed}\nskipped=${res.skipped}`);
+            const res = await syncPlaidItem(selectedItemId);
+            alert(`Sync complete:\ncreated=${res.created}\nupdated=${res.updated}\nremoved=${res.removed}`);
             await loadTransactions();
         } catch (e: any) {
             alert(`Sync failed: ${e?.response?.data?.error || e.message}`);
@@ -217,10 +242,35 @@ function TransactionList() {
                 <Typography variant='h4' component='h1'>
                     Recent Transactions
                 </Typography>
-                <Stack direction="row" spacing={1}>
-                    <Button variant="outlined" onClick={handleManualSync}>
-                        Sync (paste Item ID)
+                <Stack direction="row" spacing={1} alignItems="center">
+                    <TextField
+                        select
+                        label="Bank"
+                        size="small"
+                        sx={{ minWidth: 260 }}
+                        value={selectedItemId}
+                        onChange={(e) => setSelectedItemId(e.target.value)}
+                    >
+                        {plaidItems.map((it) => {
+                            const label = it.institutionName
+                                ? `${it.institutionName} · ${it.plaidItemId.slice(-6)}`
+                                : `Unknown · ${it.plaidItemId.slice(-6)}`;
+                            return (
+                                <MenuItem key={it.id} value={it.id}>
+                                    {label}
+                                </MenuItem>
+                            );
+                        })}
+                    </TextField>
+
+                    <Button
+                        variant="outlined"
+                        onClick={handleManualSync}
+                        disabled={!selectedItemId}
+                    >
+                        Sync
                     </Button>
+
                     <Button variant="contained" onClick={() => handleOpenForm()}>
                         Add Transaction
                     </Button>

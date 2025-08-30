@@ -1,28 +1,26 @@
 package com.anshdesai.finpilot.service;
 
-import com.anshdesai.finpilot.api.PlaidSyncResponse;
-import com.plaid.client.model.*;
-import com.plaid.client.request.PlaidApi;
-import com.anshdesai.finpilot.config.PlaidProperties;
+import com.anshdesai.finpilot.api.PlaidItemSummary;
 import com.anshdesai.finpilot.api.PlaidPublicTokenExchangeResponse;
-import org.springframework.stereotype.Service;
-import retrofit2.Response;
+import com.anshdesai.finpilot.api.PlaidSyncResponse;
+import com.anshdesai.finpilot.config.PlaidProperties;
 import com.anshdesai.finpilot.model.PlaidItem;
 import com.anshdesai.finpilot.repository.PlaidItemRepository;
 import com.anshdesai.finpilot.repository.TransactionRepository;
-import com.plaid.client.model.AccountsGetRequest;
-import com.plaid.client.model.AccountsGetResponse;
-import com.plaid.client.model.TransactionsSyncRequest;
-import com.plaid.client.model.TransactionsSyncRequestOptions;
-import com.plaid.client.model.TransactionsSyncResponse;
-
+import com.plaid.client.model.*;
+import com.plaid.client.request.PlaidApi;
+import com.plaid.client.model.ItemGetRequest;
+import com.plaid.client.model.ItemGetResponse;
+import com.plaid.client.model.InstitutionsGetByIdRequest;
+import com.plaid.client.model.InstitutionsGetByIdResponse;
+import org.springframework.stereotype.Service;
+import retrofit2.Response;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.List;
 
 @Service
 public class PlaidService {
@@ -32,7 +30,13 @@ public class PlaidService {
     private final PlaidItemRepository plaidItemRepo;
     private final TransactionRepository txRepo;
 
-    public PlaidService(PlaidApi plaidApi, PlaidProperties props, CryptoService crypto, PlaidItemRepository plaidItemRepo, TransactionRepository txRepo) {
+    public PlaidService(
+            PlaidApi plaidApi,
+            PlaidProperties props,
+            CryptoService crypto,
+            PlaidItemRepository plaidItemRepo,
+            TransactionRepository txRepo
+    ) {
         this.plaidApi = plaidApi;
         this.props = props;
         this.crypto = crypto;
@@ -40,7 +44,6 @@ public class PlaidService {
         this.txRepo = txRepo;
     }
 
-    // tiny helper: ["US","CA"] -> [CountryCode.US, CountryCode.CA]
     private List<CountryCode> toCountryCodes(List<String> codes) {
         return codes == null ? List.of()
                 : codes.stream()
@@ -49,62 +52,54 @@ public class PlaidService {
                 .toList();
     }
 
-    /** Simple sanity check against Plaid Institutions API */
+    /** Quick sanity check */
     public String testConnection() throws Exception {
         InstitutionsGetRequest req = new InstitutionsGetRequest()
                 .count(10)
                 .offset(0)
-                .countryCodes(toCountryCodes(props.getCountryCodes())); // ← REQUIRED
-
+                .countryCodes(toCountryCodes(props.getCountryCodes()));
         Response<InstitutionsGetResponse> resp = plaidApi.institutionsGet(req).execute();
-
         if (resp.isSuccessful() && resp.body() != null && !resp.body().getInstitutions().isEmpty()) {
             return "Plaid OK. First institution: " + resp.body().getInstitutions().getFirst().getName();
-        } else {
-            String err = resp.errorBody() != null ? resp.errorBody().string() : "unknown";
-            throw new Exception("Plaid connection failed: " + err);
         }
+        String err = resp.errorBody() != null ? resp.errorBody().string() : "unknown";
+        throw new Exception("Plaid connection failed: " + err);
     }
 
-    /** Create a Plaid link_token for the frontend */
+    /** Create link_token */
     public String createLinkToken(String userId) throws Exception {
-        LinkTokenCreateRequestUser user = new LinkTokenCreateRequestUser()
-                .clientUserId(userId);
-
+        LinkTokenCreateRequestUser user = new LinkTokenCreateRequestUser().clientUserId(userId);
         LinkTokenCreateRequest req = new LinkTokenCreateRequest()
                 .user(user)
                 .clientName("Finpilot")
                 .products(List.of(Products.TRANSACTIONS))
                 .countryCodes(toCountryCodes(props.getCountryCodes()))
                 .language("en");
-
         Response<LinkTokenCreateResponse> resp = plaidApi.linkTokenCreate(req).execute();
-
         if (resp.isSuccessful() && resp.body() != null) {
             return resp.body().getLinkToken();
-        } else {
-            String err = (resp.errorBody() != null) ? resp.errorBody().string() : "unknown error";
-            throw new Exception("Plaid link_token create failed: " + err);
         }
+        String err = (resp.errorBody() != null) ? resp.errorBody().string() : "unknown error";
+        throw new Exception("Plaid link_token create failed: " + err);
     }
 
+    /** Overload that can capture institution id/name (if your request DTO provides them). */
     public PlaidPublicTokenExchangeResponse exchangePublicToken(String userId, String publicToken) throws Exception {
-        // 1) Call Plaid to exchange
+        // 1) Exchange
         ItemPublicTokenExchangeRequest request = new ItemPublicTokenExchangeRequest().publicToken(publicToken);
         Response<ItemPublicTokenExchangeResponse> response = plaidApi.itemPublicTokenExchange(request).execute();
-
         if (!response.isSuccessful() || response.body() == null) {
             String err = (response.errorBody() != null) ? response.errorBody().string() : "unknown error";
             throw new Exception("Plaid public token exchange failed: " + err);
         }
 
-        String accessToken = response.body().getAccessToken();  // plaintext from Plaid
-        String itemId = response.body().getItemId();            // Plaid item_id
+        String accessToken = response.body().getAccessToken();
+        String itemId      = response.body().getItemId();
 
-        // 2) Encrypt the token
+        // 2) Encrypt
         String accessTokenEnc = crypto.encrypt(accessToken);
 
-        // 3) Upsert plaid_items for (userId, itemId)
+        // 3) Upsert PlaidItem (create if not exists)
         var existing = plaidItemRepo.findByPlaidItemIdAndUserId(itemId, userId);
         PlaidItem entity = existing.orElseGet(() -> {
             PlaidItem pi = new PlaidItem();
@@ -112,12 +107,36 @@ public class PlaidService {
             pi.setItemId(itemId);
             return pi;
         });
-
         entity.setAccessTokenEnc(accessTokenEnc);
+
+        // 4) Fetch institution metadata and store it
+        try {
+            // items/get → institution_id
+            ItemGetRequest igReq = new ItemGetRequest().accessToken(accessToken);
+            Response<ItemGetResponse> igResp = plaidApi.itemGet(igReq).execute();
+            if (igResp.isSuccessful() && igResp.body() != null && igResp.body().getItem() != null) {
+                String instId = igResp.body().getItem().getInstitutionId();
+                entity.setInstitutionId(instId);
+
+                // institutions/get_by_id → human name
+                if (instId != null && !instId.isBlank()) {
+                    InstitutionsGetByIdRequest instReq = new InstitutionsGetByIdRequest()
+                            .institutionId(instId)
+                            .countryCodes(toCountryCodes(props.getCountryCodes()));
+                    Response<InstitutionsGetByIdResponse> instResp = plaidApi.institutionsGetById(instReq).execute();
+                    if (instResp.isSuccessful()
+                            && instResp.body() != null
+                            && instResp.body().getInstitution() != null) {
+                        entity.setInstitutionName(instResp.body().getInstitution().getName());
+                    }
+                }
+            }
+        } catch (Exception swallow) {
+            // non-fatal: leave institution fields null if Plaid lookups fail
+        }
 
         plaidItemRepo.save(entity);
 
-        // 4) Return a lean response (never return the token)
         return new PlaidPublicTokenExchangeResponse(
                 true,
                 itemId,
@@ -125,15 +144,13 @@ public class PlaidService {
         );
     }
 
+    /** Simple /accounts/get demo */
     public List<String> getAccountsForItem(String userId, UUID itemDbId) throws Exception {
-        // 1) Load item scoped to the user
         var item = plaidItemRepo.findByIdAndUserId(itemDbId, userId)
                 .orElseThrow(() -> new IllegalArgumentException("Item not found"));
 
-        // 2) Decrypt the access token
         String accessToken = crypto.decrypt(item.getAccessTokenEnc());
 
-        // 3) Call Plaid /accounts/get
         AccountsGetRequest req = new AccountsGetRequest().accessToken(accessToken);
         Response<AccountsGetResponse> resp = plaidApi.accountsGet(req).execute();
 
@@ -142,49 +159,39 @@ public class PlaidService {
             throw new Exception("accountsGet failed: " + err);
         }
 
-        // 4) Return a simple shape for now (name + mask)
         return resp.body().getAccounts().stream()
                 .map(a -> {
                     String name = a.getName() != null ? a.getName() : a.getOfficialName();
                     String mask = a.getMask();
                     String subtype = (a.getSubtype() != null) ? a.getSubtype().getValue() : "";
-                    return (name != null ? name : "Account") +
-                            (mask != null ? " ••••" + mask : "") +
-                            (subtype.isBlank() ? "" : " (" + subtype + ")");
+                    return (name != null ? name : "Account")
+                            + (mask != null ? " ••••" + mask : "")
+                            + (subtype.isBlank() ? "" : " (" + subtype + ")");
                 })
                 .toList();
     }
 
+    /** Tiny probe using /transactions/get (used earlier for eyeballing) */
     public List<Map<String, Object>> probeTransactions(String userId, UUID itemDbId, int days) throws Exception {
-        // load the item for this user; 404-style error if not found
         var item = plaidItemRepo.findByIdAndUserId(itemDbId, userId)
                 .orElseThrow(() -> new IllegalArgumentException("Item not found"));
-
-        // decrypt the access token we stored
         String accessToken = crypto.decrypt(item.getAccessTokenEnc());
 
-        // build a small date window: last N days (default later will be 30)
         LocalDate end = LocalDate.now();
         LocalDate start = end.minusDays(Math.max(1, days));
-        DateTimeFormatter fmt = DateTimeFormatter.ISO_LOCAL_DATE;
 
-        // prepare the Plaid request: cap at 5 results just to validate the pipe
         TransactionsGetRequest req = new TransactionsGetRequest()
                 .accessToken(accessToken)
                 .startDate(start)
                 .endDate(end)
-                .options(new TransactionsGetRequestOptions()
-                        .includePersonalFinanceCategory(true)
-                );
+                .options(new TransactionsGetRequestOptions().includePersonalFinanceCategory(true));
 
-        // call Plaid
         Response<TransactionsGetResponse> resp = plaidApi.transactionsGet(req).execute();
         if (!resp.isSuccessful() || resp.body() == null) {
             String err = (resp.errorBody() != null) ? resp.errorBody().string() : "unknown";
             throw new Exception("transactionsGet failed: " + err);
         }
 
-        // return a lean shape for easy eyeballing in HTTP client
         return resp.body().getTransactions().stream().map(t -> {
             Map<String, Object> m = new java.util.LinkedHashMap<>();
             m.put("date", t.getDate());
@@ -195,7 +202,6 @@ public class PlaidService {
             m.put("account_id", t.getAccountId());
             m.put("pending", Boolean.TRUE.equals(t.getPending()));
             m.put("iso_currency", t.getIsoCurrencyCode());
-
             var pfc = t.getPersonalFinanceCategory();
             if (pfc != null) {
                 Map<String, Object> pfcMap = new java.util.LinkedHashMap<>();
@@ -212,25 +218,23 @@ public class PlaidService {
         return txRepo.existsByUserIdAndPlaidTransactionId(userId, plaidTxnId);
     }
 
-    public com.anshdesai.finpilot.api.PlaidSyncResponse transactionsSync(String userId, UUID itemDbId) throws Exception {
-        // 1) Load item owned by this user
+    /** Cursor-based sync; persists new cursor; upserts only ADDED for now. */
+    public PlaidSyncResponse transactionsSync(String userId, UUID itemDbId) throws Exception {
         var item = plaidItemRepo.findByIdAndUserId(itemDbId, userId)
                 .orElseThrow(() -> new IllegalArgumentException("Item not found"));
 
-        // 2) Decrypt access token
+        String prevCursor = item.getNextCursor(); // capture BEFORE updating (for firstSync flag)
+
         String accessToken = crypto.decrypt(item.getAccessTokenEnc());
 
-        // 3) Build options (ask Plaid for PFC)
         TransactionsSyncRequestOptions opts = new TransactionsSyncRequestOptions()
                 .includePersonalFinanceCategory(true);
 
-        // 4) Build request with existing cursor (null is fine on first run)
         TransactionsSyncRequest req = new TransactionsSyncRequest()
                 .accessToken(accessToken)
-                .cursor(item.getNextCursor())
+                .cursor(prevCursor)
                 .options(opts);
 
-        // 5) Call Plaid once
         Response<TransactionsSyncResponse> resp = plaidApi.transactionsSync(req).execute();
         if (!resp.isSuccessful() || resp.body() == null) {
             String err = (resp.errorBody() != null) ? resp.errorBody().string() : "unknown";
@@ -239,13 +243,13 @@ public class PlaidService {
 
         TransactionsSyncResponse body = resp.body();
 
-        // 6) Persist the new cursor for next time
+        // Save new cursor for next time
         item.setNextCursor(body.getNextCursor());
         plaidItemRepo.save(item);
 
         int created = 0, updated = 0, removed = 0, skipped = 0;
 
-        // --- 7) Handle ADDED ---
+        // Handle ADDED → insert if not present
         if (body.getAdded() != null) {
             for (com.plaid.client.model.Transaction pt : body.getAdded()) {
                 String plaidTxnId = pt.getTransactionId();
@@ -254,14 +258,19 @@ public class PlaidService {
                     continue;
                 }
 
-                com.anshdesai.finpilot.model.Transaction tx = new com.anshdesai.finpilot.model.Transaction();
+                var tx = new com.anshdesai.finpilot.model.Transaction();
                 tx.setUserId(userId);
                 tx.setDate(pt.getDate());
-                tx.setAmount(BigDecimal.valueOf(pt.getAmount()).negate()); // Plaid is +ve for debit, we store -ve
-                tx.setMerchant(pt.getName() != null ? pt.getName() : "");
+
+                // Amount sign: make INCOME positive, everything else negative (Plaid amounts are positive for outflows)
                 var pfc = pt.getPersonalFinanceCategory();
+                boolean isIncome = (pfc != null && "INCOME".equalsIgnoreCase(pfc.getPrimary()));
+                BigDecimal amt = BigDecimal.valueOf(pt.getAmount());
+                tx.setAmount(isIncome ? amt : amt.negate());
+
+                tx.setMerchant(pt.getName() != null ? pt.getName() : "");
                 if (pfc != null && pfc.getPrimary() != null) {
-                    tx.setCategory(pfc.getPrimary()); // legacy text field
+                    tx.setCategory(pfc.getPrimary()); // legacy text field, you already map to your Category table elsewhere
                 }
                 tx.setPlaidTransactionId(plaidTxnId);
                 tx.setPlaidAccountId(pt.getAccountId());
@@ -273,16 +282,38 @@ public class PlaidService {
             }
         }
 
-        // --- 8) Return counts (modified/removed handled in later steps) ---
-        boolean firstSync = (item.getNextCursor() == null || item.getNextCursor().isBlank());
         int modCount = body.getModified() == null ? 0 : body.getModified().size();
         int remCount = body.getRemoved() == null ? 0 : body.getRemoved().size();
 
-        return new com.anshdesai.finpilot.api.PlaidSyncResponse(
+        boolean firstSync = (prevCursor == null || prevCursor.isBlank());
+
+        return new PlaidSyncResponse(
                 created,
                 modCount,
                 remCount,
                 firstSync
         );
+    }
+
+    /** Summaries for dropdowns etc. */
+    public List<PlaidItemSummary> listItems(String userId) {
+        // If your repo has a custom finder, use it; otherwise filter in memory.
+        return plaidItemRepo.findAll().stream()
+                .filter(pi -> userId.equals(pi.getUserId()))
+                .map(pi -> new PlaidItemSummary(
+                        pi.getId(),
+                        pi.getPlaidItemId(),
+                        pi.getInstitutionId(),
+                        pi.getInstitutionName(),
+                        pi.getCreatedAt()
+                ))
+                .sorted((a, b) -> {
+                    // newest first (null-safe)
+                    if (a.getCreatedAt() == null && b.getCreatedAt() == null) return 0;
+                    if (a.getCreatedAt() == null) return 1;
+                    if (b.getCreatedAt() == null) return -1;
+                    return b.getCreatedAt().compareTo(a.getCreatedAt());
+                })
+                .toList();
     }
 }

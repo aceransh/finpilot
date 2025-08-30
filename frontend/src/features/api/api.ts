@@ -212,3 +212,16 @@ export async function syncPlaidItem(itemId: string): Promise<PlaidSyncResponse> 
     return data;
 }
 
+export interface PlaidItemSummary {
+    id: string;                 // DB UUID
+    plaidItemId: string;        // Plaid item_id
+    institutionId?: string|null;
+    institutionName?: string|null;
+    createdAt: string;          // ISO timestamp
+}
+
+export const listPlaidItems = async (): Promise<PlaidItemSummary[]> => {
+    const { data } = await client.get<PlaidItemSummary[]>('/plaid/items');
+    return data;
+};
+

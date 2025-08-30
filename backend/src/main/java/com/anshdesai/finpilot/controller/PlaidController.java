@@ -1,5 +1,6 @@
 package com.anshdesai.finpilot.controller;
 
+import com.anshdesai.finpilot.api.PlaidItemSummary;
 import com.anshdesai.finpilot.api.PlaidPublicTokenExchangeRequest;
 import com.anshdesai.finpilot.service.PlaidService;
 import org.springframework.http.ResponseEntity;
@@ -88,5 +89,10 @@ public class PlaidController {
     ) throws Exception {
         String userId = currentUser.userId();
         return plaidService.transactionsSync(userId, id);
+    }
+
+    @GetMapping("/items")
+    public List<PlaidItemSummary> listItems() {
+        return plaidService.listItems(currentUser.userId());
     }
 }
