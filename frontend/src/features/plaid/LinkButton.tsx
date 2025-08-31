@@ -6,6 +6,14 @@ import { createPlaidLinkToken } from '../api/api'; // adjust path if your api.ts
 const LinkButton: React.FC = () => {
     const [token, setToken] = React.useState<string | null>(null);
     const [loading, setLoading] = React.useState(false);
+    const initialized = React.useRef(false);
+
+    React.useEffect(() => {
+        if (initialized.current) return;   // prevents double init in dev
+        initialized.current = true;
+
+        // your Link setup that calls usePlaidLink/open()
+    }, []);
 
     // 1) Get a fresh link_token from your backend
     const fetchToken = async () => {

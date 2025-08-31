@@ -1,52 +1,29 @@
-@HOST = http://localhost:8080
-@TOKEN = eyJhbGciOiJSUzI1NiIsImtpZCI6ImVmMjQ4ZjQyZjc0YWUwZjk0OTIwYWY5YTlhMDEzMTdlZjJkMzVmZTEiLCJ0eXAiOiJKV1QifQ.eyJuYW1lIjoiQW5zaCBEZXNhaSIsInBpY3R1cmUiOiJodHRwczovL2xoMy5nb29nbGV1c2VyY29udGVudC5jb20vYS9BQ2c4b2NMMkUwRlhDVU00YmlaU3AyS21OS1lzOGdoRkkzUGkyNWlGN01ZSy16cG1sZk04blJ4Zj1zOTYtYyIsImlzcyI6Imh0dHBzOi8vc2VjdXJldG9rZW4uZ29vZ2xlLmNvbS9maW5waWxvdC0xNSIsImF1ZCI6ImZpbnBpbG90LTE1IiwiYXV0aF90aW1lIjoxNzU1Nzg4OTY0LCJ1c2VyX2lkIjoiQmVRVWV4emdLemdsbWJ3c3VQWUxyYTBuZ1gwMiIsInN1YiI6IkJlUVVleHpnS3pnbG1id3N1UFlMcmEwbmdYMDIiLCJpYXQiOjE3NTY1MDc0NjksImV4cCI6MTc1NjUxMTA2OSwiZW1haWwiOiJhY2VyYW5zaEBnbWFpbC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwiZmlyZWJhc2UiOnsiaWRlbnRpdGllcyI6eyJnb29nbGUuY29tIjpbIjEwOTgwNTc2MDk1NzU1NjA5NTA2NCJdLCJlbWFpbCI6WyJhY2VyYW5zaEBnbWFpbC5jb20iXX0sInNpZ25faW5fcHJvdmlkZXIiOiJnb29nbGUuY29tIn19.HzwNw0t_fq3zFJyt7IiHJqxIubFMRZsEQmI9fkt13xB1m8h7YnLHmxcOlxyD6V1bVnqwCiAmym9fUt1bnCBEtJs_Kxg9gaPUpgBy6D8bnCxLjxMlpcyjcU6ogwc1eN9_fAVRD7vyHSW9HvVLhGLkp91oSy_Fb3UHixtybFGxjrA3rXRrBvlR-OZZtBoxa3K1Bc8VY4qHRrr5HCaqilZAe8kqEmVn4f-I10hktR-s8-fcbDmp6W280FwNEBfC6n8DO8GZ_ZLh2k_R399vU2VDfhZUPaflXjoKvtNS9OEqhWq2fib4eYRrmtUMP_BgNW0O4ZJXoeivamns_FE3dLGlXA
-@ITEM_ID = 00000000-0000-0000-0000-000000000000   # <- optional: set after linking
-@PUBLIC_TOKEN = public-sandbox-bdccd89a-da90-4605-be3e-88e27f5de552
+@host = http://localhost:8080
+@bearer = eyJhbGciOiJSUzI1NiIsImtpZCI6ImVmMjQ4ZjQyZjc0YWUwZjk0OTIwYWY5YTlhMDEzMTdlZjJkMzVmZTEiLCJ0eXAiOiJKV1QifQ.eyJuYW1lIjoiQW5zaCBEZXNhaSIsInBpY3R1cmUiOiJodHRwczovL2xoMy5nb29nbGV1c2VyY29udGVudC5jb20vYS9BQ2c4b2NMMkUwRlhDVU00YmlaU3AyS21OS1lzOGdoRkkzUGkyNWlGN01ZSy16cG1sZk04blJ4Zj1zOTYtYyIsImlzcyI6Imh0dHBzOi8vc2VjdXJldG9rZW4uZ29vZ2xlLmNvbS9maW5waWxvdC0xNSIsImF1ZCI6ImZpbnBpbG90LTE1IiwiYXV0aF90aW1lIjoxNzU1Nzg4OTY0LCJ1c2VyX2lkIjoiQmVRVWV4emdLemdsbWJ3c3VQWUxyYTBuZ1gwMiIsInN1YiI6IkJlUVVleHpnS3pnbG1id3N1UFlMcmEwbmdYMDIiLCJpYXQiOjE3NTY2ODIxNDIsImV4cCI6MTc1NjY4NTc0MiwiZW1haWwiOiJhY2VyYW5zaEBnbWFpbC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwiZmlyZWJhc2UiOnsiaWRlbnRpdGllcyI6eyJnb29nbGUuY29tIjpbIjEwOTgwNTc2MDk1NzU1NjA5NTA2NCJdLCJlbWFpbCI6WyJhY2VyYW5zaEBnbWFpbC5jb20iXX0sInNpZ25faW5fcHJvdmlkZXIiOiJnb29nbGUuY29tIn19.HhGz7Y_4JTSbDessTVwP-qskFhevM8cWMy8m9qBKbhwdgVd9lQx1g2oKfjNSJ7rRn72rK8z1368GCRr0KC0ik_y_oJ6cWDlA4ofbEvYsyo5Uz9_3VDo825emnIxi20eBkwTUs4mhwuxPlYQZ2BwKk1WpCNsMlFPNmqzT1Bbkg0KdELMpMjMXvIoWXXMdwxebnfDF9v-415OdzrbURjjpI5rhh1rbOB6xi_odq9c60b6y_VomaG1JtmcuzIS8jCygwSxDdtWdfWBUPsVVm04AcjmdWo3w1v5SYNmHWMBdEbI254ckDomziqzJI_z2gnxNOwJKxLxCo1kha7GZ9Is80A
+@item_id = e46ca81e-3bbd-4bf5-834e-5a332eb63dd0
+@account_id = K8En3JmGGDCvGV64Ex3XHDbvLXvj7XtRxbeZN
 
-### Who am I (sanity)
-GET {{HOST}}/api/v1/auth/whoami
-Authorization: Bearer {{TOKEN}}
+### 1) List Plaid items (DB ids + institution info)
+GET {{host}}/api/v1/plaid/items
+Authorization: Bearer {{bearer}}
 Accept: application/json
 
-### Plaid ping
-GET {{HOST}}/api/v1/plaid/ping
-Authorization: Bearer {{TOKEN}}
+### Copy one "id" into @item_id above
+GET {{host}}/api/v1/plaid/accounts
+Authorization: Bearer {{bearer}}
 Accept: application/json
 
-### Create Plaid link_token (frontend will use this)
-POST {{HOST}}/api/v1/plaid/link/token/create
-Authorization: Bearer {{TOKEN}}
-Content-Type: application/json
+### Copy one "plaidAccountId" into @account_id above
+POST {{host}}/api/v1/plaid/items/{{item_id}}/sync
+Authorization: Bearer {{bearer}}
 Accept: application/json
 
-{}
-
-### Exchange public_token (paste the value you get from Plaid Link)
-POST {{HOST}}/api/v1/plaid/public-token/exchange
-Authorization: Bearer {{TOKEN}}
-Content-Type: application/json
+###
+GET {{host}}/api/v1/transactions?size=5&sort=date,desc
+Authorization: Bearer {{bearer}}
 Accept: application/json
 
-{
-  "publicToken": "{{PUBLIC_TOKEN}}"
-}
-
-### List your Plaid items (useful to grab the UUID for sync)
-GET {{HOST}}/api/v1/plaid/items
-Authorization: Bearer {{TOKEN}}
-Accept: application/json
-
-### Accounts for one item (set @ITEM_ID at top)
-GET {{HOST}}/api/v1/plaid/items/{{ITEM_ID}}/accounts
-Authorization: Bearer {{TOKEN}}
-Accept: application/json
-
-### Run transactions sync for one item (cursor-based)
-POST {{HOST}}/api/v1/plaid/items/{{ITEM_ID}}/sync
-Authorization: Bearer {{TOKEN}}
-Accept: application/json
-
-### Verify transactions persisted (first page)
-GET {{HOST}}/api/v1/transactions?page=0&size=20&sort=date,desc
-Authorization: Bearer {{TOKEN}}
+###
+GET {{host}}/api/v1/transactions?accountId={{account_id}}&size=5&sort=date,desc
+Authorization: Bearer {{bearer}}
 Accept: application/json

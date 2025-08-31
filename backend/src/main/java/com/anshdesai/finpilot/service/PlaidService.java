@@ -171,6 +171,52 @@ public class PlaidService {
                 .toList();
     }
 
+    public java.util.List<java.util.Map<String, Object>> listPlaidAccounts(String userId) {
+        var items = plaidItemRepo.findAllByUserIdOrderByCreatedAtDesc(userId);
+        var out = new java.util.ArrayList<java.util.Map<String, Object>>();
+
+        for (PlaidItem item : items) {
+            try {
+                // decrypt and fetch accounts for this item
+                String accessToken = crypto.decrypt(item.getAccessTokenEnc());
+                AccountsGetRequest req = new AccountsGetRequest().accessToken(accessToken);
+                Response<AccountsGetResponse> resp = plaidApi.accountsGet(req).execute();
+
+                if (!resp.isSuccessful() || resp.body() == null) {
+                    String err = (resp.errorBody() != null) ? resp.errorBody().string() : "unknown";
+                    throw new RuntimeException("accountsGet failed: " + err);
+                }
+
+                for (AccountBase a : resp.body().getAccounts()) {
+                    var row = new java.util.LinkedHashMap<String, Object>();
+                    row.put("itemDbId", item.getId());                 // UUID of our row
+                    row.put("plaidItemId", item.getPlaidItemId());     // Plaid item_id
+                    row.put("institutionId", item.getInstitutionId()); // may be null if not captured yet
+                    row.put("institutionName", item.getInstitutionName());
+
+                    row.put("accountId", a.getAccountId());
+                    String name = (a.getName() != null) ? a.getName() : a.getOfficialName();
+                    row.put("name", name);
+                    row.put("mask", a.getMask());
+                    row.put("subtype", (a.getSubtype() != null) ? a.getSubtype().getValue() : null);
+
+                    out.add(row);
+                }
+            } catch (Exception ex) {
+                // Don't fail the whole list—surface an error entry for this item
+                var row = new java.util.LinkedHashMap<String, Object>();
+                row.put("itemDbId", item.getId());
+                row.put("plaidItemId", item.getPlaidItemId());
+                row.put("institutionId", item.getInstitutionId());
+                row.put("institutionName", item.getInstitutionName());
+                row.put("error", ex.getMessage());
+                out.add(row);
+            }
+        }
+
+        return out;
+    }
+
     /** Tiny probe using /transactions/get (used earlier for eyeballing) */
     public List<Map<String, Object>> probeTransactions(String userId, UUID itemDbId, int days) throws Exception {
         var item = plaidItemRepo.findByIdAndUserId(itemDbId, userId)

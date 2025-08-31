@@ -38,6 +38,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import TransactionForm from "./TransactionForm";
 import { syncPlaidItem } from '../api/api';
+import { getPlaidAccounts, type PlaidAccount } from '../api/api';
 
 function TransactionList() {
     const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -62,8 +63,11 @@ function TransactionList() {
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [deleteId, setDeleteId] = useState<number | null>(null);
 
+    //plaid
     const [plaidItems, setPlaidItems] = useState<PlaidItemSummary[]>([]);
     const [selectedItemId, setSelectedItemId] = useState<string>('');
+    const [accountId, setAccountId] = useState<string>('');
+    const [accountOptions, setAccountOptions] = useState<PlaidAccount[]>([]);
 
     useEffect(() => {
         let ignore = false;
@@ -108,6 +112,19 @@ function TransactionList() {
         return () => { ignore = true; };
     }, []);
 
+    useEffect(() => {
+        let ignore = false;
+        (async () => {
+            try {
+                const accts = await getPlaidAccounts();
+                if (!ignore) setAccountOptions(Array.isArray(accts) ? accts : []);
+            } catch (e) {
+                console.error('Failed to load Plaid accounts:', e);
+            }
+        })();
+        return () => { ignore = true; };
+    }, []);
+
 
     const loadTransactions = useCallback(async () => {
         try {
@@ -115,7 +132,7 @@ function TransactionList() {
             setError(null);
 
             const sort = `${sortField},${sortDir}`;
-            const data = await getTransactions({ page, size: rowsPerPage, sort, q, category, from, to });
+            const data = await getTransactions({ page, size: rowsPerPage, sort, q, category, from, to, accountId });
 
             setTransactions(Array.isArray(data.content) ? data.content : []);
             setTotal(data.totalElements ?? 0);
@@ -125,7 +142,7 @@ function TransactionList() {
         } finally {
             setLoading(false);
         }
-    }, [page, rowsPerPage, sortField, sortDir, q, category, from, to]);
+    }, [page, rowsPerPage, sortField, sortDir, q, category, from, to, accountId]);
 
     useEffect(() => {
         loadTransactions().catch(console.error);
@@ -301,7 +318,34 @@ function TransactionList() {
                             </MenuItem>
                         ))}
                     </TextField>
-
+                    <TextField
+                        label="Account"
+                        select
+                        value={accountId ?? ''} // always a string
+                        onChange={(e) => {
+                            const v = (e.target.value as string) ?? '';
+                            setAccountId(v);
+                            setPage(0);
+                            // quick debug:
+                            // console.log('Selected accountId=', v);
+                        }}
+                        size="small"
+                        sx={{ minWidth: 260 }}
+                    >
+                        <MenuItem value="">All</MenuItem>
+                        {accountOptions.map(a => {
+                            const id = a.accountId ?? ''; // <-- IMPORTANT
+                            const inst = a.institutionName || 'Unknown';
+                            const name = a.name || a.officialName || 'Account';
+                            const mask = a.mask ? ` ••••${a.mask}` : '';
+                            const subtype = a.subtype ? ` (${a.subtype})` : '';
+                            return (
+                                <MenuItem key={id || `${inst}-${name}-${mask}`} value={id}>
+                                    {inst} — {name}{mask}{subtype}
+                                </MenuItem>
+                            );
+                        })}
+                    </TextField>
                     <TextField
                         label="From"
                         type="date"
@@ -320,7 +364,7 @@ function TransactionList() {
                     />
 
                     <Button
-                        onClick={() => { setQ(''); setCategory(''); setFrom(''); setTo(''); setPage(0); }}
+                        onClick={() => { setQ(''); setCategory(''); setFrom(''); setTo(''); setAccountId(''); setPage(0); }}
                     >
                         Clear
                     </Button>

@@ -33,9 +33,10 @@ public class TransactionController {
             @RequestParam(required = false) String category,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) String accountId, // ← NEW
             @PageableDefault Pageable pageable
     ) {
-        Page<Transaction> page = txService.searchTransactions(category, q, from, to, pageable);
+        Page<Transaction> page = txService.searchTransactions(category, q, from, to, accountId, pageable); // ← pass it through
         return page.map(TransactionMapper::toResponse);
     }
 

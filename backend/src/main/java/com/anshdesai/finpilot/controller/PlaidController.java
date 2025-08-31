@@ -74,6 +74,12 @@ public class PlaidController {
         return plaidService.getAccountsForItem(userId, id);
     }
 
+    @GetMapping("/accounts")
+    public java.util.List<java.util.Map<String, Object>> listPlaidAccounts() {
+        String userId = currentUser.userId();
+        return plaidService.listPlaidAccounts(userId);
+    }
+
     @GetMapping("/items/{id}/probe-transactions")
     public List<Map<String, Object>> probeTransactions(
             @PathVariable UUID id,

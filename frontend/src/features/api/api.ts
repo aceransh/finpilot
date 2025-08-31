@@ -36,17 +36,19 @@ export interface TxQuery {
     category?: string;
     from?: string;   // YYYY-MM-DD
     to?: string;     // YYYY-MM-DD
+    accountId?: string;
 }
 
 export type TxUpsert = Omit<Transaction, 'id' | 'categoryName' | 'categoryLocked'>;
 
 export const getTransactions = async (params: TxQuery = {}) => {
-    const { page = 0, size = 10, sort = 'date,desc', q, category, from, to } = params;
+    const { page = 0, size = 10, sort = 'date,desc', q, category, from, to, accountId } = params;
     const p: Record<string, unknown> = { page, size, sort };
     if (q) p.q = q;
     if (category) p.category = category;
     if (from) p.from = from;
     if (to) p.to = to;
+    if (accountId) p.accountId = accountId; // NEW
 
     const { data } = await client.get<Page<Transaction>>('/transactions', { params: p });
     return data;
@@ -222,6 +224,22 @@ export interface PlaidItemSummary {
 
 export const listPlaidItems = async (): Promise<PlaidItemSummary[]> => {
     const { data } = await client.get<PlaidItemSummary[]>('/plaid/items');
+    return data;
+};
+
+export interface PlaidAccount {
+    accountId: string;      // ✅ matches backend
+    name?: string;
+    officialName?: string;
+    mask?: string;
+    subtype?: string;
+    institutionName?: string;
+    plaidItemId?: string;
+    itemDbId?: string;
+}
+
+export const getPlaidAccounts = async (): Promise<PlaidAccount[]> => {
+    const { data } = await client.get<PlaidAccount[]>('/plaid/accounts');
     return data;
 };
 

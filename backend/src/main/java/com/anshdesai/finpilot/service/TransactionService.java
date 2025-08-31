@@ -187,6 +187,7 @@ public class TransactionService {
             String q,
             LocalDate startDate,
             LocalDate endDate,
+            String accountId,            // ← NEW
             Pageable pageable
     ) {
         Specification<Transaction> spec = (root, query, cb) ->
@@ -208,6 +209,10 @@ public class TransactionService {
         }
         if (endDate != null) {
             spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("date"), endDate));
+        }
+        if (accountId != null && !accountId.isBlank()) {
+            spec = spec.and((root, query, cb) ->
+                    cb.equal(root.get("plaidAccountId"), accountId));
         }
 
         return transactionRepository.findAll(spec, pageable);
