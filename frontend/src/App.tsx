@@ -8,6 +8,7 @@ import DashboardLayout from './layouts/DashboardLayout';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
 import Rules from './pages/Rules';
+import Settings from './pages/Settings';
 import Login from './pages/Login';
 
 function App() {
@@ -22,6 +23,7 @@ function App() {
               <Route index element={<Dashboard />} />
               <Route path="transactions" element={<Transactions />} />
               <Route path="rules" element={<Rules />} />
+              <Route path="settings" element={<Settings />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>

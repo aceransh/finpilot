@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useDispatch } from 'react-redux';
 import {
   Box,
   Drawer,
@@ -22,6 +23,7 @@ import RuleIcon from '@mui/icons-material/Rule';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { logout } from '../store/authSlice';
 
 const drawerWidth = 240;
 
@@ -38,14 +40,15 @@ const DashboardLayout = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const dispatch = useDispatch();
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
 
   const handleLogout = () => {
-    console.log('Logout clicked');
-    // TODO: Implement logout logic
+    dispatch(logout());
+    navigate('/login');
   };
 
   const drawer = (
