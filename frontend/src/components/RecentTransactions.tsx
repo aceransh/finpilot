@@ -17,11 +17,14 @@ interface RecentTransactionsProps {
 
 const RecentTransactions = ({ transactions }: RecentTransactionsProps) => {
   return (
-      <TableContainer component={Paper}>
-        <Typography variant="h6" sx={{ p: 2 }}>
+      // FIX 1: Add fixed height and scroll
+      <TableContainer component={Paper} sx={{ maxHeight: 400, overflow: 'auto' }}>
+        <Typography variant="h6" sx={{ p: 2, position: 'sticky', top: 0, bgcolor: 'background.paper', zIndex: 1 }}>
           Recent Transactions
         </Typography>
-        <Table>
+
+        {/* FIX 2: Sticky Header so you don't lose context while scrolling */}
+        <Table stickyHeader>
           <TableHead>
             <TableRow>
               <TableCell>Date</TableCell>
@@ -38,7 +41,8 @@ const RecentTransactions = ({ transactions }: RecentTransactionsProps) => {
                   </TableCell>
                 </TableRow>
             ) : (
-                transactions.map((transaction) => (
+                // FIX 3: Slice to show only the last 50 items
+                transactions.slice(0, 50).map((transaction) => (
                     <TableRow key={transaction.id}>
                       <TableCell>
                         {format(new Date(transaction.date), 'MM/dd/yyyy')}
@@ -54,7 +58,7 @@ const RecentTransactions = ({ transactions }: RecentTransactionsProps) => {
                         ${transaction.amount.toFixed(2)}
                       </TableCell>
                       <TableCell>
-                        {/* LOGIC UPDATE: Check Custom Category -> Plaid Category -> Uncategorized */}
+                        {/* LOGIC: Check Custom Category -> Plaid Category -> Uncategorized */}
                         {transaction.category ? (
                             <span
                                 style={{
@@ -69,11 +73,10 @@ const RecentTransactions = ({ transactions }: RecentTransactionsProps) => {
                                 style={{
                                   color: '#2979ff', // FinPilot Blue for auto-categories
                                   fontWeight: 'bold',
-                                  textTransform: 'capitalize', // Makes it look nicer
+                                  textTransform: 'capitalize',
                                 }}
                             >
-                      {/* Replace underscores with spaces (e.g. FOOD_AND_DRINK -> FOOD AND DRINK) */}
-                              {transaction.plaidCategory.replace(/_/g, ' ').toLowerCase()}
+                      {transaction.plaidCategory.replace(/_/g, ' ').toLowerCase()}
                     </span>
                         ) : (
                             <span style={{ color: '#9e9e9e' }}>Uncategorized</span>

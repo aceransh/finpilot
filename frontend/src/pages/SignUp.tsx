@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useDispatch } from 'react-redux';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
   Box,
@@ -10,15 +9,14 @@ import {
   Alert,
   Link,
 } from '@mui/material';
-import { setCredentials } from '../store/authSlice';
 import axiosInstance from '../api/axiosConfig';
 
-const Login = () => {
+const SignUp = () => {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const dispatch = useDispatch();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -27,21 +25,17 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const response = await axiosInstance.post('/auth/login', {
+      await axiosInstance.post('/auth/register', {
+        name, // <--- FIXED: You were missing this line!
         email,
         password,
       });
 
-      const { token } = response.data;
-
-      // For now, we'll use email as the user object
-      const user = { email };
-
-      dispatch(setCredentials({ user, token }));
-      navigate('/');
+      alert('Registration successful! Please log in.');
+      navigate('/login');
     } catch (err: any) {
       setError(
-          err.response?.data?.message || 'Login failed. Please check your credentials.'
+          err.response?.data?.message || 'Registration failed. Please try again.'
       );
     } finally {
       setLoading(false);
@@ -55,8 +49,8 @@ const Login = () => {
             justifyContent: 'center',
             alignItems: 'center',
             minHeight: '100vh',
-            width: '100vw', // <--- FIXED: Forces full screen width
-            bgcolor: 'background.default', // Optional: Uses theme background color
+            width: '100vw', // <--- FIXED: Forces full screen width to center correctly
+            bgcolor: 'background.default',
           }}
       >
         <Paper
@@ -64,7 +58,7 @@ const Login = () => {
             sx={{
               p: 4,
               width: '100%',
-              maxWidth: 400, // Keeps the card a nice compact size
+              maxWidth: 400, // Compact card width
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
@@ -74,7 +68,7 @@ const Login = () => {
             FinPilot
           </Typography>
           <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 3 }}>
-            Sign in to your account
+            Create your account
           </Typography>
 
           {error && (
@@ -84,6 +78,16 @@ const Login = () => {
           )}
 
           <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
+            <TextField
+                fullWidth
+                label="Name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                margin="normal"
+                required
+                autoComplete="name"
+            />
             <TextField
                 fullWidth
                 label="Email"
@@ -102,7 +106,7 @@ const Login = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 margin="normal"
                 required
-                autoComplete="current-password"
+                autoComplete="new-password"
             />
             <Button
                 type="submit"
@@ -111,11 +115,11 @@ const Login = () => {
                 sx={{ mt: 3, mb: 2 }}
                 disabled={loading}
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? 'Creating account...' : 'Sign Up'}
             </Button>
             <Box sx={{ textAlign: 'center' }}>
-              <Link component={RouterLink} to="/signup" variant="body2" underline="hover">
-                Don't have an account? Sign Up
+              <Link component={RouterLink} to="/login" variant="body2" underline="hover">
+                Already have an account? Sign In
               </Link>
             </Box>
           </Box>
@@ -124,4 +128,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default SignUp;

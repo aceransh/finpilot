@@ -75,10 +75,7 @@ const SpendingChart = ({ transactions }: SpendingChartProps) => {
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        // TS FIX: Use 'any' for render props to avoid strict type errors
-                        label={({ name, percent }: any) =>
-                            `${name} ${((percent || 0) * 100).toFixed(0)}%`
-                        }
+                        label={false} // <--- CHANGED: Removes the messy text labels
                         outerRadius={100}
                         fill="#8884d8"
                         dataKey="value"

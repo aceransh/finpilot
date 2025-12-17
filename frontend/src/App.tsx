@@ -11,6 +11,7 @@ import TransactionsPage from './pages/TransactionsPage';
 import Rules from './pages/Rules';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
+import SignUp from './pages/SignUp';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<SignUp />} />
             <Route path="/" element={<DashboardLayout />}>
               <Route index element={<Dashboard />} />
               <Route path="transactions" element={<TransactionsPage />} />
