@@ -36,9 +36,10 @@ const TransactionsPage = () => {
     fetchData();
   }, []);
 
+  // FIXED: Changed categoryId from number to string (UUID)
   const handleUpdateTransaction = async (
-    id: string,
-    data: { categoryId?: number; description?: string }
+      id: string,
+      data: { categoryId?: string; description?: string }
   ) => {
     try {
       await updateTransaction(id, data);
@@ -65,19 +66,18 @@ const TransactionsPage = () => {
   }
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
-        Transactions
-      </Typography>
-      <TransactionTable
-        transactions={transactions}
-        categories={categories}
-        onUpdate={handleUpdateTransaction}
-        onCreateCategory={handleCreateCategory}
-      />
-    </Box>
+      <Box sx={{ p: 3 }}>
+        <Typography variant="h4" gutterBottom>
+          Transactions
+        </Typography>
+        <TransactionTable
+            transactions={transactions}
+            categories={categories}
+            onUpdate={handleUpdateTransaction}
+            onCreateCategory={handleCreateCategory}
+        />
+      </Box>
   );
 };
 
 export default TransactionsPage;
-
