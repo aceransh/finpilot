@@ -36,7 +36,7 @@ const LinkButton = () => {
   const config = {
     token: linkToken,
     onSuccess,
-    onExit: (err: any, metadata: any) => {
+    onExit: (err: any) => {
       if (err) {
         console.error('Plaid Link error:', err);
       }

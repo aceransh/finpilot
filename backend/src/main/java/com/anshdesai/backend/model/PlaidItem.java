@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import com.fasterxml.jackson.annotation.JsonIgnore; // <--- IMPORT THIS
 
 import java.util.List;
 import java.util.UUID;
@@ -23,6 +24,7 @@ public class PlaidItem {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
+    @JsonIgnore // <--- THIS CUTS THE LOOP (The Magic Fix)
     private User user;
 
     @Column(name = "access_token", nullable = false)
@@ -31,7 +33,6 @@ public class PlaidItem {
     @Column(name = "item_id", nullable = false)
     private String itemId;
 
-    // --- ADD THIS NEW FIELD ---
     @Column(name = "institution_name")
     private String institutionName;
 
