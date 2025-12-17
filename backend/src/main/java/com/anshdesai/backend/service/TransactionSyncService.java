@@ -1,10 +1,12 @@
 package com.anshdesai.backend.service;
 
 import com.anshdesai.backend.model.Account;
+import com.anshdesai.backend.model.Category;
 import com.anshdesai.backend.model.PlaidItem;
 import com.anshdesai.backend.model.Transaction;
 import com.anshdesai.backend.model.User;
 import com.anshdesai.backend.repository.AccountRepository;
+import com.anshdesai.backend.repository.CategoryRepository;
 import com.anshdesai.backend.repository.PlaidItemRepository;
 import com.anshdesai.backend.repository.TransactionRepository;
 import com.plaid.client.model.TransactionsGetResponse;
@@ -17,6 +19,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,6 +31,7 @@ public class TransactionSyncService {
     private final PlaidItemRepository plaidItemRepository;
     private final AccountRepository accountRepository;
     private final TransactionRepository transactionRepository;
+    private final CategoryRepository categoryRepository;
 
     @Transactional
     public int syncTransactions(User user) {
@@ -108,6 +113,9 @@ public class TransactionSyncService {
                         }
                     }
 
+                    // Get or create category from Plaid category
+                    Category category = getOrCreateCategory(user, plaidCategory);
+
                     Transaction transaction = Transaction.builder()
                             .account(account)
                             .plaidTransactionId(plaidTxn.getTransactionId())
@@ -116,7 +124,7 @@ public class TransactionSyncService {
                             .description(plaidTxn.getName())
                             .plaidCategory(plaidCategory)
                             .plaidDetailedCategory(plaidDetailedCategory)
-                            .category(null) // Will be set by categorization rules later
+                            .category(category)
                             .build();
 
                     transactionRepository.save(transaction);
@@ -169,6 +177,77 @@ public class TransactionSyncService {
 
             accountRepository.save(newAccount);
         }
+    }
+
+    /**
+     * Helper method to get or create a Category from Plaid category string
+     */
+    private Category getOrCreateCategory(User user, String plaidCategory) {
+        // If plaidCategory is null, return null
+        if (plaidCategory == null || plaidCategory.isEmpty()) {
+            return null;
+        }
+
+        // Format the name: "FOOD_AND_DRINK" -> "Food And Drink" (Title Case, replace underscores)
+        String formattedName = formatCategoryName(plaidCategory);
+
+        // Check if category exists for this user
+        Optional<Category> existingCategory = categoryRepository.findByNameAndUserId(formattedName, user.getId());
+        
+        if (existingCategory.isPresent()) {
+            return existingCategory.get();
+        }
+
+        // Create new category
+        String colorHex = generateRandomColor();
+        
+        Category newCategory = Category.builder()
+                .user(user)
+                .name(formattedName)
+                .colorHex(colorHex)
+                .build();
+
+        return categoryRepository.save(newCategory);
+    }
+
+    /**
+     * Format Plaid category name to Title Case
+     * Example: "FOOD_AND_DRINK" -> "Food And Drink"
+     */
+    private String formatCategoryName(String plaidCategory) {
+        if (plaidCategory == null || plaidCategory.isEmpty()) {
+            return plaidCategory;
+        }
+
+        // Replace underscores with spaces and convert to lowercase
+        String[] words = plaidCategory.toLowerCase().replace("_", " ").split(" ");
+        
+        // Capitalize first letter of each word
+        StringBuilder formatted = new StringBuilder();
+        for (int i = 0; i < words.length; i++) {
+            if (i > 0) {
+                formatted.append(" ");
+            }
+            if (!words[i].isEmpty()) {
+                formatted.append(words[i].substring(0, 1).toUpperCase());
+                if (words[i].length() > 1) {
+                    formatted.append(words[i].substring(1));
+                }
+            }
+        }
+        
+        return formatted.toString();
+    }
+
+    /**
+     * Generate a random hex color
+     */
+    private String generateRandomColor() {
+        Random random = new Random();
+        int r = random.nextInt(256);
+        int g = random.nextInt(256);
+        int b = random.nextInt(256);
+        return String.format("#%02x%02x%02x", r, g, b);
     }
 }
 
