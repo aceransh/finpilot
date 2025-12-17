@@ -14,6 +14,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID; // <--- Import UUID
 
 @RestController
 @RequestMapping("/api/categories")
@@ -51,16 +52,18 @@ public class CategoryController {
                 .user(user)
                 .name(request.getName())
                 .colorHex(request.getColorHex() != null ? request.getColorHex() : "#2979ff")
+                // No default type set here, assumed handled by DB default or builder
                 .build();
 
         Category saved = categoryRepository.save(category);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
+    // FIXED: Changed Long -> UUID
     @PutMapping("/{id}")
     public ResponseEntity<Category> updateCategory(
             Authentication authentication,
-            @PathVariable Long id,
+            @PathVariable UUID id,
             @RequestBody UpdateCategoryRequest request) {
         String email = authentication.getName();
         User user = userRepository.findByEmail(email)
@@ -86,10 +89,11 @@ public class CategoryController {
         return ResponseEntity.ok(updated);
     }
 
+    // FIXED: Changed Long -> UUID
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteCategory(
             Authentication authentication,
-            @PathVariable Long id) {
+            @PathVariable UUID id) {
         String email = authentication.getName();
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -103,6 +107,8 @@ public class CategoryController {
         }
 
         // Set transactions' category to null before deleting to avoid FK errors
+        // Note: This is inefficient for large datasets but works for MVP.
+        // Better approach: Use a custom repository method "updateCategoryToNull(categoryId)"
         List<Transaction> transactions = transactionRepository.findAll().stream()
                 .filter(txn -> txn.getCategory() != null && txn.getCategory().getId().equals(id))
                 .toList();
@@ -128,4 +134,3 @@ public class CategoryController {
         private String colorHex;
     }
 }
-

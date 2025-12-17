@@ -36,3 +36,39 @@ export const syncTransactions = async (): Promise<SyncResponse> => {
   // Return data or a safe default if something goes wrong
   return response.data || { status: 'UNKNOWN', count: 0 };
 };
+
+export interface UpdateTransactionRequest {
+  categoryId?: number;
+  description?: string;
+}
+
+export const updateTransaction = async (
+  id: string,
+  data: UpdateTransactionRequest
+): Promise<Transaction> => {
+  const response = await axiosInstance.patch<Transaction>(`/transactions/${id}`, data);
+  return response.data;
+};
+
+export interface CreateCategoryRequest {
+  name: string;
+  colorHex?: string;
+}
+
+export interface Category {
+  id: number;
+  name: string;
+  colorHex: string;
+}
+
+export const createCategory = async (
+  data: CreateCategoryRequest
+): Promise<Category> => {
+  const response = await axiosInstance.post<Category>('/categories', data);
+  return response.data;
+};
+
+export const getCategories = async (): Promise<Category[]> => {
+  const response = await axiosInstance.get<Category[]>('/categories');
+  return response.data;
+};
