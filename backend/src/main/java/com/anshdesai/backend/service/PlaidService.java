@@ -39,7 +39,8 @@ public class PlaidService {
             if (response.isSuccessful() && response.body() != null) {
                 return response.body().getLinkToken();
             } else {
-                throw new RuntimeException("Plaid Error: " + (response.errorBody() != null ? response.errorBody().string() : "Unknown"));
+                throw new RuntimeException(
+                        "Plaid Error: " + (response.errorBody() != null ? response.errorBody().string() : "Unknown"));
             }
         } catch (Exception e) {
             throw new RuntimeException("Error creating link token", e);
@@ -65,7 +66,8 @@ public class PlaidService {
 
                 plaidItemRepository.save(item);
             } else {
-                throw new RuntimeException("Plaid Error: " + (response.errorBody() != null ? response.errorBody().string() : "Unknown"));
+                throw new RuntimeException(
+                        "Plaid Error: " + (response.errorBody() != null ? response.errorBody().string() : "Unknown"));
             }
         } catch (Exception e) {
             throw new RuntimeException("Error exchanging token", e);
@@ -73,12 +75,14 @@ public class PlaidService {
     }
 
     // Fixed: Uses the startDate/endDate arguments you pass in
-    public TransactionsGetResponse getTransactions(String accessToken, LocalDate startDate, LocalDate endDate) {
+    public TransactionsGetResponse getTransactions(String accessToken, LocalDate startDate, LocalDate endDate,
+            TransactionsGetRequestOptions options) {
         try {
             TransactionsGetRequest request = new TransactionsGetRequest()
                     .accessToken(accessToken)
                     .startDate(startDate)
-                    .endDate(endDate);
+                    .endDate(endDate)
+                    .options(options);
 
             Response<TransactionsGetResponse> response = plaidApi
                     .transactionsGet(request)

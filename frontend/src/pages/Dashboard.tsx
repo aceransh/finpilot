@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Box, Typography } from '@mui/material';
 // NOTICE: No Grid imports here!
 import LinkButton from '../components/LinkButton';
+import SyncButton from '../components/SyncButton';
 import RecentTransactions from '../components/RecentTransactions';
 import SpendingChart from '../components/SpendingChart';
 import { getTransactions } from '../api/transactionService';
@@ -33,8 +34,9 @@ const Dashboard = () => {
           Dashboard
         </Typography>
 
-        <Box sx={{ mb: 3 }}>
+        <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
           <LinkButton />
+          <SyncButton />
         </Box>
 
         {loading ? (

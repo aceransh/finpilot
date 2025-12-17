@@ -8,6 +8,7 @@ import com.anshdesai.backend.repository.AccountRepository;
 import com.anshdesai.backend.repository.PlaidItemRepository;
 import com.anshdesai.backend.repository.TransactionRepository;
 import com.plaid.client.model.TransactionsGetResponse;
+import com.plaid.client.model.TransactionsGetRequestOptions;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,11 +42,16 @@ public class TransactionSyncService {
         // For each PlaidItem, fetch and save transactions
         for (PlaidItem plaidItem : plaidItems) {
             try {
+                // Create options to include personal finance categories
+                TransactionsGetRequestOptions options = new TransactionsGetRequestOptions()
+                        .includePersonalFinanceCategory(true);
+
                 // Get transactions from Plaid
                 TransactionsGetResponse response = plaidService.getTransactions(
                         plaidItem.getAccessToken(),
                         startDate,
-                        endDate
+                        endDate,
+                        options
                 );
 
                 if (response == null) {
@@ -89,12 +95,27 @@ public class TransactionSyncService {
                             ? plaidTxn.getDate() 
                             : LocalDate.now();
 
+                    // Extract Plaid categories (check for nulls)
+                    String plaidCategory = null;
+                    String plaidDetailedCategory = null;
+                    
+                    if (plaidTxn.getPersonalFinanceCategory() != null) {
+                        if (plaidTxn.getPersonalFinanceCategory().getPrimary() != null) {
+                            plaidCategory = plaidTxn.getPersonalFinanceCategory().getPrimary();
+                        }
+                        if (plaidTxn.getPersonalFinanceCategory().getDetailed() != null) {
+                            plaidDetailedCategory = plaidTxn.getPersonalFinanceCategory().getDetailed();
+                        }
+                    }
+
                     Transaction transaction = Transaction.builder()
                             .account(account)
                             .plaidTransactionId(plaidTxn.getTransactionId())
                             .amount(BigDecimal.valueOf(plaidTxn.getAmount()))
                             .date(transactionDate)
                             .description(plaidTxn.getName())
+                            .plaidCategory(plaidCategory)
+                            .plaidDetailedCategory(plaidDetailedCategory)
                             .category(null) // Will be set by categorization rules later
                             .build();
 
