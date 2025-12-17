@@ -4,36 +4,34 @@ import com.anshdesai.backend.model.PlaidItem;
 import com.anshdesai.backend.model.User;
 import com.anshdesai.backend.repository.PlaidItemRepository;
 import com.plaid.client.request.PlaidApi;
-import com.plaid.client.model.*; // Imports all models (Request, Response, Products, etc.)
+import com.plaid.client.model.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import retrofit2.Response;
 
+import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.Collections;
 
 @Service
 @RequiredArgsConstructor
 public class PlaidService {
 
-    // We inject the Interface now, not the Client class
     private final PlaidApi plaidApi;
     private final PlaidItemRepository plaidItemRepository;
 
     public String createLinkToken(User user) {
         try {
-            // 1. Create the User object required by Plaid
             LinkTokenCreateRequestUser plaidUser = new LinkTokenCreateRequestUser()
                     .clientUserId(user.getId().toString());
 
-            // 2. Build the Request
             LinkTokenCreateRequest request = new LinkTokenCreateRequest()
                     .user(plaidUser)
                     .clientName("FinPilot")
-                    .products(Collections.singletonList(Products.AUTH))
+                    .products(Arrays.asList(Products.AUTH, Products.TRANSACTIONS))
                     .countryCodes(Collections.singletonList(CountryCode.US))
                     .language("en");
 
-            // 3. Execute the call
             Response<LinkTokenCreateResponse> response = plaidApi
                     .linkTokenCreate(request)
                     .execute();
@@ -50,34 +48,54 @@ public class PlaidService {
 
     public void exchangePublicToken(User user, String publicToken) {
         try {
-            // 1. Create the exchange request
             ItemPublicTokenExchangeRequest request = new ItemPublicTokenExchangeRequest()
                     .publicToken(publicToken);
 
-            // 2. Execute the call
             Response<ItemPublicTokenExchangeResponse> response = plaidApi
                     .itemPublicTokenExchange(request)
                     .execute();
 
             if (response.isSuccessful() && response.body() != null) {
-                ItemPublicTokenExchangeResponse exchangeResponse = response.body();
-                String accessToken = exchangeResponse.getAccessToken();
-                String itemId = exchangeResponse.getItemId();
+                PlaidItem item = new PlaidItem();
+                item.setUser(user);
+                item.setAccessToken(response.body().getAccessToken());
+                item.setItemId(response.body().getItemId());
+                item.setInstitutionName("Sandbox Bank"); // Now this will work!
+                item.setStatus("ACTIVE");
 
-                // 3. Create and save PlaidItem entity
-                PlaidItem plaidItem = PlaidItem.builder()
-                        .user(user)
-                        .accessToken(accessToken)
-                        .itemId(itemId)
-                        .status("ACTIVE")
-                        .build();
-
-                plaidItemRepository.save(plaidItem);
+                plaidItemRepository.save(item);
             } else {
                 throw new RuntimeException("Plaid Error: " + (response.errorBody() != null ? response.errorBody().string() : "Unknown"));
             }
         } catch (Exception e) {
-            throw new RuntimeException("Error exchanging public token", e);
+            throw new RuntimeException("Error exchanging token", e);
+        }
+    }
+
+    // Fixed: Uses the startDate/endDate arguments you pass in
+    public TransactionsGetResponse getTransactions(String accessToken, LocalDate startDate, LocalDate endDate) {
+        try {
+            TransactionsGetRequest request = new TransactionsGetRequest()
+                    .accessToken(accessToken)
+                    .startDate(startDate)
+                    .endDate(endDate);
+
+            Response<TransactionsGetResponse> response = plaidApi
+                    .transactionsGet(request)
+                    .execute();
+
+            if (response.isSuccessful() && response.body() != null) {
+                return response.body();
+            } else {
+                // Safe error handling to avoid warnings
+                String errorMsg = "Unknown error";
+                if (response.errorBody() != null) {
+                    errorMsg = response.errorBody().string();
+                }
+                throw new RuntimeException("Error fetching transactions: " + errorMsg);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Error fetching transactions", e);
         }
     }
 }
