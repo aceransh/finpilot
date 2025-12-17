@@ -1,20 +1,20 @@
 import axiosInstance from './axiosConfig';
 
+export interface Category {
+  id: string; // <--- FIXED: UUIDs are strings
+  name: string;
+  colorHex: string;
+}
+
 export interface Transaction {
   id: string;
   plaidTransactionId: string;
   amount: number;
   date: string;
   description: string;
-  // --- NEW FIELDS ---
   plaidCategory?: string;
   plaidDetailedCategory?: string;
-  // ------------------
-  category: {
-    id: number;
-    name: string;
-    colorHex: string;
-  } | null;
+  category: Category | null; // Reuse the Category interface above
   account: {
     id: string;
     name: string;
@@ -33,18 +33,17 @@ export const getTransactions = async (): Promise<Transaction[]> => {
 
 export const syncTransactions = async (): Promise<SyncResponse> => {
   const response = await axiosInstance.post<SyncResponse>('/transactions/sync');
-  // Return data or a safe default if something goes wrong
   return response.data || { status: 'UNKNOWN', count: 0 };
 };
 
 export interface UpdateTransactionRequest {
-  categoryId?: number;
+  categoryId?: string; // <--- FIXED: UUID string
   description?: string;
 }
 
 export const updateTransaction = async (
-  id: string,
-  data: UpdateTransactionRequest
+    id: string,
+    data: UpdateTransactionRequest
 ): Promise<Transaction> => {
   const response = await axiosInstance.patch<Transaction>(`/transactions/${id}`, data);
   return response.data;
@@ -55,14 +54,8 @@ export interface CreateCategoryRequest {
   colorHex?: string;
 }
 
-export interface Category {
-  id: number;
-  name: string;
-  colorHex: string;
-}
-
 export const createCategory = async (
-  data: CreateCategoryRequest
+    data: CreateCategoryRequest
 ): Promise<Category> => {
   const response = await axiosInstance.post<Category>('/categories', data);
   return response.data;

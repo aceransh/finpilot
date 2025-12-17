@@ -6,7 +6,6 @@ import { store } from './store/store';
 import { theme } from './theme';
 import DashboardLayout from './layouts/DashboardLayout';
 import Dashboard from './pages/Dashboard';
-import Transactions from './pages/Transactions';
 import TransactionsPage from './pages/TransactionsPage';
 import Rules from './pages/Rules';
 import Settings from './pages/Settings';
