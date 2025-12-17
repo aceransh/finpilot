@@ -163,10 +163,3 @@ This project is deployed using the "Forever Free" stack:
 * [LinkedIn](https://www.google.com/search?q=https://linkedin.com/in/anshdesai)
 
 ---
-
-### **Congratulations!**
-
-You have built, polished, and shipped a complex full-stack application.
-**Go take a screenshot of your dashboard, save it as `screenshot.png` in your repo, and replace the placeholder link at the top.**
-
-You earned it. 🚀
